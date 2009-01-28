@@ -1,0 +1,52 @@
+##
+# svcshare config file
+#
+# Edit these settings.
+##
+
+# Local settings
+#   NICK: owner of the bot (you)
+NICK = "yournick"
+
+# Bot IRC Settings
+#   BOT_IRCSERVER: server hostname
+#   BOT_IRCPORT: port
+#   BOT_NICK: nick to use for bot
+#   BOT_CHANNEL: control channel
+BOT_IRCSERVER = "irc.myircnet"
+BOT_IRCPORT = 6667
+BOT_NICK = "ss|yournick"
+BOT_CHANNEL = "#usenet"
+
+# Client settings. These settings determine how svcshare interacts with your
+# client.
+#   SERVICE_CLIENT: client you use (supported clients: 'hellanzb', 'proxy')
+#   SERVICE_CLIENT_URL: URL to control the client.
+#     for 'hellanzb', this is the XMLRPC URL (e.g., http://user:pass@host:8760)
+#     for 'proxy', this is not used
+#SERVICE_CLIENT = "proxy"
+SERVICE_CLIENT = "hellanzb"
+SERVICE_CLIENT_URL = "http://hellanzb:foobar111@localhost:8760"
+
+# Automatically request to use the service when it is not in use and something
+# exists in the queue.
+AUTO_RESUME = True
+
+# Target host for the connection proxy.
+TARGET_HOST = "news.yourservice.com"
+TARGET_PORT = 563
+
+# Local host for the connection proxy.
+LOCAL_HOST = "localhost"
+LOCAL_PORT = 8999
+
+# Newzbin feed information. Items posted to feeds will be queued automatically.
+#   FEED_DATA_FILE: file to keep record of which items have been queued
+#   FEED_POLL_PERIOD: how often to refresh feeds (seconds)
+#   NEWZBIN_FEEDS: list of URLs to feeds
+FEED_DATA_FILE = "feeds.dat"
+FEED_POLL_PERIOD = 600
+NEWZBIN_FEEDS = [
+  #"https://www.newzbin.com/search/?go=1...",
+  #"https://www.newzbin.com/search/?go=1...",
+]
