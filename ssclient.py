@@ -16,6 +16,7 @@ from svcshare import peertracker
 
 import config
 
+__version__ = "0.1"
 
 cur_count = 0
 start_bytes_transferred = 0
@@ -77,11 +78,16 @@ class Bot(irclib.SimpleIRCClient):
       active = proxy.num_active()
       connection.privmsg(event.target(), "%d connections active" % active)
 
+    # .ss version
+    if msg == ".ss version":
+      connection.privmsg(event.target(), "svcshare version %s" % __version__)
+
     if not m:
       return
 
     target, command = m.group(1), m.group(2)
-    if target != config.NICK:
+    command = command.lower()
+    if target.lower() != config.NICK.lower():
       return
 
     # pause
@@ -221,8 +227,8 @@ def enqueue(nzbid):
 
 def ircloop():
   jobs = jobqueue.JobQueue()
-  jobs.add_job("conn", time.time() + 2)
-  jobs.add_job("ping", time.time() + 5)
+  jobs.add_job("conn", time.time() + 5)
+  #jobs.add_job("ping", time.time() + 5)
   jobs.add_job("feed", time.time() + config.FEED_POLL_PERIOD)
 
   while True:
@@ -235,7 +241,7 @@ def ircloop():
         jobs.add_job(nj, time.time() + 60)
         ping()
       elif nj == "conn":
-        jobs.add_job(nj, time.time() + 2)
+        jobs.add_job(nj, time.time() + 10)
         check_connections()
       elif nj == "feed":
         jobs.add_job(nj, time.time() + config.FEED_POLL_PERIOD)
