@@ -16,7 +16,7 @@ from svcshare import peertracker
 
 import config
 
-__version__ = "0.1"
+__version__ = "0.1.1"
 
 cur_count = 0
 start_bytes_transferred = 0
@@ -148,8 +148,8 @@ class Bot(irclib.SimpleIRCClient):
       mb = transferred / 1024 / 1024
       rate = (transferred / 1024) / elapsed
 
-      msg = ("%s has 0 connections. [tx: %d MB in %dm%ds (%d KB/s)]" %
-             (config.NICK, mb, min, sec, rate))
+      msg = ("0 connections. [%d MB in %dm%ds (%d KB/s)]" %
+             (mb, min, sec, rate))
       self.connection.privmsg(self.channel, msg)
     else:
       self.connection.privmsg(self.channel,
