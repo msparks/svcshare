@@ -153,8 +153,7 @@ class Bot(irclib.SimpleIRCClient):
       self.connection.privmsg(self.channel, msg)
     else:
       self.connection.privmsg(self.channel,
-                              "%d connections" %
-                              (config.NICK, cur_count))
+                              "%d connections" % cur_count)
     self.connection.ctcp("SS_CONNUPDATE", self.channel,
                          "%s %d" % (config.NICK, cur_count))
 
