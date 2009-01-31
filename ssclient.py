@@ -91,11 +91,13 @@ class Bot(irclib.SimpleIRCClient):
 
     if chan == self.channel:
       tracker.remove(nick)
+      logging.debug("current peers: %s" % str(tracker.peers()))
 
   def on_quit(self, connection, event):
     nick = event.source().split("!")[0]
     logging.debug("QUIT %s" % nick)
     tracker.remove(nick)
+    logging.debug("current peers: %s" % str(tracker.peers()))
 
   def on_nick(self, connection, event):
     old_nick = event.source().split("!")[0]
@@ -168,10 +170,12 @@ class Bot(irclib.SimpleIRCClient):
     nick = event.source().split("!")[0]
 
     if ctcp_type == "SS_ANNOUNCE":
+      tracker.add(nick)  # add newcomer
       logging.debug("sending SS_ACK to %s" % nick)
       connection.ctcp("SS_ACK", nick, " ".join(args[1:]))
+      logging.debug("current peers: %s" % str(tracker.peers()))
     elif ctcp_type == "SS_ACK":
-      tracker.add(nick)
+      tracker.add(nick)  # we're the newcomer, adding existing peers
       logging.debug("received ack from %s" % nick)
       logging.debug("current peers: %s" % str(tracker.peers()))
 
@@ -233,10 +237,10 @@ def check_queue():
 
 
 def check_feeds():
+  logging.debug("Refreshing feeds...")
   for url in config.NEWZBIN_FEEDS:
     if not url:
       continue
-    logging.debug("Refreshing %s" % url)
     entries = feeds.poll_feed(url)
     for entry in entries:
       id = feeds.extract_nzbid(entry.id)
@@ -326,7 +330,7 @@ def main():
       bot = Bot(config.BOT_IRCSERVER, config.BOT_IRCPORT,
                 config.BOT_NICK, config.BOT_CHANNEL)
     except irclib.ServerConnectionError, x:
-      print "exception: %s" % x
+      logging.debug("exception: %s" % x)
       time.sleep(60)
       continue
     except Exception, x:
@@ -334,12 +338,12 @@ def main():
       print x
       time.sleep(60)
 
-    print "Connected, starting main loop"
+    logging.info("Connected, starting main loop")
     try:
       ircloop()
     except irclib.IRCError:
       pass
-    print "Exited main loop"
+    logging.info("Exited main loop")
     time.sleep(30)
 
 
