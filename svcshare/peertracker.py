@@ -22,4 +22,6 @@ class PeerTracker(object):
       self.remove(old_name)
 
   def peers(self):
-    return self._peers.keys()
+    lst = self._peers.keys()
+    lst.sort()
+    return lst

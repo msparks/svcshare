@@ -9,6 +9,7 @@ import time
 
 from svcshare.clientcontrol import clientcontrol
 from svcshare import connectionproxy
+from svcshare import electiontracker
 from svcshare import feedwatcher
 from svcshare import irclib
 from svcshare import jobqueue
@@ -27,6 +28,8 @@ svcclient = None
 proxy = None
 feeds = None
 tracker = None
+election = None
+jobs = None
 
 
 def sighup_handler(signum, frame):
@@ -134,25 +137,23 @@ class Bot(irclib.SimpleIRCClient):
 
     # pause
     if command == "pause":
-      if svcclient:
-        if svcclient.pause():
-          connection.privmsg(event.target(), "paused downloader")
-        else:
-          connection.privmsg(event.target(), "failed to pause downloader")
+      if svcclient and pause():
+        connection.privmsg(event.target(), "Paused client and proxy.")
+      elif svcclient:
+        connection.privmsg(event.target(),
+                           "Paused proxy. Failed to pause client.")
       else:
-        connection.privmsg(event.target(), "pausing only proxy")
-      proxy.pause()
+        connection.privmsg(event.target(), "Paused proxy.")
 
     # resume/continue
     elif command == "resume" or command == "continue":
-      if svcclient:
-        if svcclient.resume():
-          connection.privmsg(event.target(), "resumed downloader")
-        else:
-          connection.privmsg(event.target(), "failed to resume downloader")
+      if svcclient and resume():
+        connection.privmsg(event.target(), "Resumed client and proxy.")
+      elif svcclient:
+        connection.privmsg(event.target(),
+                           "Resumed proxy. Failed to resume client.")
       else:
-        connection.privmsg(event.target(), "resuming only proxy")
-      proxy.resume()
+        connection.privmsg(event.target(), "Resumed proxy.")
 
     # eta
     elif command == "eta":
@@ -162,7 +163,11 @@ class Bot(irclib.SimpleIRCClient):
           connection.privmsg(event.target(), eta_msg)
       else:
         connection.privmsg(event.target(),
-                           "downloader does not provide queue access")
+                           "Client does not provide queue access.")
+
+    # forcefully start an election
+    elif command == "election":
+      start_election()
 
   def on_ctcp(self, connection, event):
     args = event.arguments()
@@ -178,6 +183,22 @@ class Bot(irclib.SimpleIRCClient):
       tracker.add(nick)  # we're the newcomer, adding existing peers
       logging.debug("received ack from %s" % nick)
       logging.debug("current peers: %s" % str(tracker.peers()))
+    elif ctcp_type == "SS_STARTELECTION":
+      queue_size = svcclient.queue_size()
+      if queue_size is None:
+        queue_size = 0
+      logging.debug("received SS_STARTELECTION from %s. "
+                    "Sending queue size: %d MB." % queue_size)
+      connection.ctcp("SS_QUEUESIZE", nick, queue_size)
+    elif ctcp_type == "SS_QUEUESIZE" and election:
+      size = args[1]
+      logging.debug("%s reported queue size: %d MB" % size)
+      election.update(nick, size)
+      jobs.add_job("election", time.time())
+    elif ctcp_type == "SS_YIELD":
+      if not is_paused():
+        connection.privmsg(self.channel, "Yield request received. Pausing...")
+        pause()
 
   def connection_change(self, cur_count, elapsed, transferred):
     if cur_count == 0:
@@ -195,6 +216,9 @@ class Bot(irclib.SimpleIRCClient):
     self.connection.ctcp("SS_CONNUPDATE", self.channel,
                          "%s %d" % (config.NICK, cur_count))
 
+  def send_yield(self):
+    self.connection.ctcp("SS_YIELD", self.channel)
+
 
 def check_connections():
   global cur_count
@@ -204,10 +228,9 @@ def check_connections():
 
   total_bytes_transferred = proxy.transferred()
   active = proxy.num_active()
-  pl = active == 1 and "connection" or "connections"
 
   if active != cur_count:
-    print "%s has %d %s" % (config.NICK, active, pl)
+    pl = active == 1 and "connection" or "connections"
 
     # if establishing new connections, record start time
     if cur_count == 0:
@@ -229,11 +252,61 @@ def check_connections():
 
 def check_queue():
   queue_size = svcclient.queue_size()
-  if queue_size is None:
+  if queue_size is None or queue_size == 0 or not svcclient.is_paused():
     return
-  paused = svcclient.is_paused()
-  bot.connection.privmsg(bot.channel, "queue: %s, paused: %s" %
-                         (svcclient.queue_size(), paused and True or False))
+
+  # we have a queue and we're currently paused. Call an election.
+  start_election()
+
+
+def start_election():
+  global election
+  logging.debug("starting election")
+  election = electiontracker.Election(bot)
+  election.start()
+  jobs.add_job("election", time.time() + 20)
+
+
+def check_election():
+  global election
+  if election is None:
+    return
+
+  # still waiting for results?
+  deadline = election.start_time() + 20
+  now = time.time()
+  if election.peers() != tracker.peers() and now < deadline:
+    return
+
+  # did we get all results?
+  if election.peers() != tracker.peers():
+    diff = list(set(tracker.peers()) - set(election.peers()))
+    logging.debug("election failed. Failed to receive responses from: %s" %
+                  ", ".join(diff))
+    return
+
+  # all results in
+  winner = bot.nick
+  queue_size = svcclient.queue_size()
+
+  results = election.results()
+  for peer in results:
+    size = results[peer]
+    if size > 0 and size < queue_size:
+      winner = peer
+      queue_size = size
+
+  logging.debug("election winner: %s, queue size: %d MB" %
+                (bot.nick, queue_size))
+
+  # did we win?
+  if winner == bot.nick:
+    logging.debug("winner, sending force yield")
+    bot.send_yield()
+    logging.debug("resuming client")
+    resume()
+
+  election = None
 
 
 def check_feeds():
@@ -257,8 +330,30 @@ def enqueue(nzbid):
     return False
 
 
+def pause():
+  proxy.pause()
+  if svcclient:
+    return svcclient.pause()
+  return True
+
+
+def resume():
+  proxy.resume()
+  if svcclient:
+    return svcclient.resume()
+  return True
+
+
+def is_paused():
+  if svcclient:
+    if not svcclient.is_paused():
+      return False
+  if not proxy.is_paused():
+    return False
+  return True
+
+
 def ircloop():
-  jobs = jobqueue.JobQueue()
   jobs.add_job("conn", time.time() + 5)
   jobs.add_job("feed", time.time() + config.FEED_POLL_PERIOD)
 
@@ -274,6 +369,8 @@ def ircloop():
       elif nj == "feed":
         jobs.add_job(nj, time.time() + config.FEED_POLL_PERIOD)
         check_feeds()
+      elif nj == "election":
+        check_election()
 
 
 def version_string():
@@ -291,9 +388,10 @@ def version_string():
 
 def main():
   global bot
-  global svcclient
-  global proxy
   global feeds
+  global jobs
+  global proxy
+  global svcclient
   global tracker
 
   irclib.DEBUG = 0
@@ -311,11 +409,13 @@ def main():
   _target_addr = (config.TARGET_HOST, config.TARGET_PORT)
   proxy = connectionproxy.ConnectionProxyServer(_local_addr, _target_addr)
   proxy.start()
+  proxy.pause()
 
   # set up access to service client
   if config.SERVICE_CLIENT != "proxy":
     svcclient = clientcontrol.ClientControl(config.SERVICE_CLIENT,
                                             config.SERVICE_CLIENT_URL)
+    svcclient.pause()
 
   # set up feedwatcher
   _path = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),
@@ -324,6 +424,10 @@ def main():
 
   # set up peer tracker (keep track of other bots)
   tracker = peertracker.PeerTracker()
+
+  # job queue
+  jobs = jobqueue.JobQueue()
+
 
   while True:
     try:
@@ -338,7 +442,6 @@ def main():
       print x
       time.sleep(60)
 
-    logging.info("Connected, starting main loop")
     try:
       ircloop()
     except irclib.IRCError:
