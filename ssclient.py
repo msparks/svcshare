@@ -16,7 +16,7 @@ from svcshare import peertracker
 
 import config
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 cur_count = 0
 start_bytes_transferred = 0
@@ -57,14 +57,53 @@ class Bot(irclib.SimpleIRCClient):
     self.connect(server, port, nick)
     self._nick_counter = 1
 
+  def on_nicknameinuse(self, connection, event):
+    # When nick is in use, append a number to the base nick.
+    rand = random.randint(0, 9)
+    time.sleep(1)
+    self._nick_counter += 1
+    connection.nick("%s%d" % (self.nick, self._nick_counter))
+
   def on_welcome(self, connection, event):
+    self.nick = event.target()
     self._nick_counter = 1
+    logging.debug("bot nick is %s" % self.nick)
     if irclib.is_channel(self.channel):
       connection.join(self.channel)
 
   def on_disconnect(self, connection, event):
     time.sleep(30)
     self.connect(self.server, self.port, self.nick)
+
+  def on_join(self, connection, event):
+    nick = event.source().split("!")[0]
+    chan = event.target()
+    logging.debug("JOIN %s -> %s" % (nick, chan))
+
+    if nick == self.nick and chan == self.channel:
+      logging.debug("Sending SS_ANNOUNCE")
+      connection.ctcp("SS_ANNOUNCE", chan)
+
+  def on_part(self, connection, event):
+    nick = event.source().split("!")[0]
+    chan = event.target()
+    logging.debug("PART %s <- %s" % (nick, chan))
+
+    if chan == self.channel:
+      tracker.remove(nick)
+
+  def on_quit(self, connection, event):
+    nick = event.source().split("!")[0]
+    logging.debug("QUIT %s" % nick)
+    tracker.remove(nick)
+
+  def on_nick(self, connection, event):
+    old_nick = event.source().split("!")[0]
+    nick = event.target()
+    if old_nick == self.nick:
+      self.nick = event.target()
+      logging.debug("new bot nick is %s" % self.nick)
+    tracker.rename(old_nick, nick)
 
   def on_pubmsg(self, connection, event):
     if event.target() != self.channel:
@@ -80,7 +119,8 @@ class Bot(irclib.SimpleIRCClient):
 
     # .ss version
     if msg == ".ss version":
-      connection.privmsg(event.target(), "svcshare version %s" % __version__)
+      connection.privmsg(event.target(),
+                         "svcshare version %s" % version_string())
 
     if not m:
       return
@@ -122,24 +162,18 @@ class Bot(irclib.SimpleIRCClient):
         connection.privmsg(event.target(),
                            "downloader does not provide queue access")
 
-
-  def on_nicknameinuse(self, connection, event):
-    # When nick is in use, append a number to the base nick.
-    rand = random.randint(0, 9)
-    time.sleep(1)
-    self._nick_counter += 1
-    connection.nick("%s%d" % (self.nick, self._nick_counter))
-
   def on_ctcp(self, connection, event):
     args = event.arguments()
     ctcp_type = args[0]
     nick = event.source().split("!")[0]
-    if ctcp_type == "SS_PING":
-      logging.debug("sending SS_PONG to %s" % nick)
-      connection.ctcp("SS_PONG", nick, " ".join(args[1:]))
-    elif ctcp_type == "SS_PONG":
-      logging.debug("received pong from %s" % nick)
-      tracker.update(nick)
+
+    if ctcp_type == "SS_ANNOUNCE":
+      logging.debug("sending SS_ACK to %s" % nick)
+      connection.ctcp("SS_ACK", nick, " ".join(args[1:]))
+    elif ctcp_type == "SS_ACK":
+      tracker.add(nick)
+      logging.debug("received ack from %s" % nick)
+      logging.debug("current peers: %s" % str(tracker.peers()))
 
   def connection_change(self, cur_count, elapsed, transferred):
     if cur_count == 0:
@@ -156,11 +190,6 @@ class Bot(irclib.SimpleIRCClient):
                               "%d connections" % cur_count)
     self.connection.ctcp("SS_CONNUPDATE", self.channel,
                          "%s %d" % (config.NICK, cur_count))
-
-
-def ping():
-  tracker.clear()
-  bot.connection.ctcp("SS_PING", bot.channel, str(int(time.time())))
 
 
 def check_connections():
@@ -227,7 +256,6 @@ def enqueue(nzbid):
 def ircloop():
   jobs = jobqueue.JobQueue()
   jobs.add_job("conn", time.time() + 5)
-  #jobs.add_job("ping", time.time() + 5)
   jobs.add_job("feed", time.time() + config.FEED_POLL_PERIOD)
 
   while True:
@@ -236,15 +264,25 @@ def ircloop():
     while jobs.has_next_job():
       nj = jobs.next_job()
 
-      if nj == "ping":
-        jobs.add_job(nj, time.time() + 60)
-        ping()
-      elif nj == "conn":
+      if nj == "conn":
         jobs.add_job(nj, time.time() + 10)
         check_connections()
       elif nj == "feed":
         jobs.add_job(nj, time.time() + config.FEED_POLL_PERIOD)
         check_feeds()
+
+
+def version_string():
+  git_path = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),
+                                           ".git/refs/heads/master"))
+  if not os.path.exists(git_path):
+    return __version__
+
+  fd = open(git_path, "r")
+  id = fd.read()
+  fd.close()
+
+  return "%s (%s)" % (__version__, id[0:10])
 
 
 def main():

@@ -9,8 +9,17 @@ class PeerTracker(object):
     self._peers = {}
     self._last_cleared = time.time()
 
-  def update(self, peername):
+  def add(self, peername):
     self._peers[peername] = time.time()
+
+  def remove(self, peername):
+    if peername in self._peers:
+      del self._peers[peername]
+
+  def rename(self, old_name, new_name):
+    if old_name in self._peers:
+      self._peers[new_name] = self._peers[old_name]
+      self.remove(old_name)
 
   def peers(self):
     return self._peers.keys()
