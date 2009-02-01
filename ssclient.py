@@ -145,15 +145,11 @@ class Bot(irclib.SimpleIRCClient):
       else:
         connection.privmsg(event.target(), "Paused proxy.")
 
-    # resume/continue
-    elif command == "resume" or command == "continue":
-      if svcclient and resume():
-        connection.privmsg(event.target(), "Resumed client and proxy.")
-      elif svcclient:
-        connection.privmsg(event.target(),
-                           "Resumed proxy. Failed to resume client.")
-      else:
-        connection.privmsg(event.target(), "Resumed proxy.")
+    # start an election (old resume)
+    elif command == "resume" or command == "continue" or command == "election":
+      connection.privmsg(event.target(),
+                         "Starting an election.")
+      start_election()
 
     # eta
     elif command == "eta":
@@ -165,9 +161,12 @@ class Bot(irclib.SimpleIRCClient):
         connection.privmsg(event.target(),
                            "Client does not provide queue access.")
 
-    # forcefully start an election
-    elif command == "election":
-      start_election()
+    # forcefully start downloading by yielding peers
+    elif command == "force":
+      connection.privmsg(event.target(),
+                         "Sending yield request and forcefully resuming.")
+      send_yield()
+      resume()
 
   def on_ctcp(self, connection, event):
     args = event.arguments()
@@ -311,11 +310,16 @@ def check_election():
 
   # did we win?
   if winner == bot.nick and queue_size > 0:
+    bot.connection.privmsg(bot.channel,
+                           "Election won. Sending yield and resuming. "
+                           "Queue size: %d MB." % queue_size)
     logging.debug("winner, sending force yield")
     bot.send_yield()
     logging.debug("resuming client")
     resume()
   elif winner == bot.nick and queue_size == 0:
+    bot.connection.privmsg(bot.channel,
+                           "Election won, but queue is empty. Ignoring.")
     logging.debug("won the election, but queue size is 0. ignoring.")
 
   election = None
@@ -368,6 +372,7 @@ def is_paused():
 def ircloop():
   jobs.add_job("conn", time.time() + 5)
   jobs.add_job("feed", time.time() + config.FEED_POLL_PERIOD)
+  jobs.add_job("queue", time.time() + 10)
 
   while True:
     bot.ircobj.process_once(timeout=0.4)
@@ -383,6 +388,9 @@ def ircloop():
         check_feeds()
       elif nj == "election":
         check_election()
+      elif nj == "queue":
+        jobs.add_job("queue", time.time() + 1800)
+        check_queue()
 
 
 def version_string():
