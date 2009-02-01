@@ -187,8 +187,8 @@ class Bot(irclib.SimpleIRCClient):
       queue_size = svcclient.queue_size()
       if queue_size is None:
         queue_size = 0
-      logging.debug("received SS_STARTELECTION from %s. "
-                    "Sending queue size: %d MB." % queue_size)
+      logging.debug("election request from %s; queue size: %d MB" %
+                    (nick, queue_size))
       connection.ctcp("SS_QUEUESIZE", nick, queue_size)
     elif ctcp_type == "SS_QUEUESIZE" and election:
       size = args[1]
@@ -383,7 +383,7 @@ def version_string():
   id = fd.read()
   fd.close()
 
-  return "%s (%s)" % (__version__, id[0:10])
+  return "%s (%s)" % (__version__, id[0:5])
 
 
 def main():
