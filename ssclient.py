@@ -137,6 +137,7 @@ class Bot(irclib.SimpleIRCClient):
     if event.target() != self.channel:
       return
 
+    nick = event.source().split("!")[0]
     msg = event.arguments()[0]
     m = re.search(r"^\.ss\s+(.+?)\s+(.+?)(?: (.+?))?\s*$", msg)
 
@@ -160,7 +161,7 @@ class Bot(irclib.SimpleIRCClient):
     # pause
     if command == "pause":
       if svcclient.pause():
-        svcclient.unforce()
+        state.unforce()
         connection.privmsg(event.target(), "Paused client.")
       else:
         connection.privmsg(event.target(),
@@ -188,6 +189,18 @@ class Bot(irclib.SimpleIRCClient):
                          "Resuming. Forced allotment: %d MB." % min_mb)
       self.send_yield()
       state.force(allotment=min_mb)
+
+    # enqueue
+    elif nick == config.NICK and (command == "enq" or command == "enqueue"):
+      ids = ext.split(" ")
+      qd_ids = []
+      for id in ids:
+        if id and svcclient.enqueue(id):
+          qd_ids.append(id)
+      if qd_ids:
+        connection.privmsg(event.target(), "Queued: %s" % ", ".join(qd_ids))
+      else:
+        connection.privmsg(event.target(), "Failed to queue items.")
 
   def on_ctcp(self, connection, event):
     args = event.arguments()
