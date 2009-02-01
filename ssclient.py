@@ -189,7 +189,7 @@ class Bot(irclib.SimpleIRCClient):
         queue_size = 0
       logging.debug("election request from %s; queue size: %d MB" %
                     (nick, queue_size))
-      connection.ctcp("SS_QUEUESIZE", nick, queue_size)
+      connection.ctcp("SS_QUEUESIZE", nick, "%s" % queue_size)
     elif ctcp_type == "SS_QUEUESIZE" and election:
       size = args[1]
       logging.debug("%s reported queue size: %d MB" % size)
