@@ -4,9 +4,8 @@ import socket
 import xmlrpclib
 
 
-class HellanzbControl:
-  """Control for the hellanzb client.
-  """
+class HellanzbControl(object):
+  """Control for the hellanzb client."""
   def __init__(self, xmlrpc_url):
     self._url = xmlrpc_url
     self._server = xmlrpclib.ServerProxy(self._url)
