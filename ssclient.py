@@ -17,7 +17,7 @@ from svcshare import peertracker
 
 import config
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"
 
 cur_count = 0
 start_bytes_transferred = 0
