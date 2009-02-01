@@ -191,8 +191,15 @@ class Bot(irclib.SimpleIRCClient):
                     (nick, queue_size))
       connection.ctcp("SS_QUEUESIZE", nick, "%s" % queue_size)
     elif ctcp_type == "SS_QUEUESIZE" and election:
-      size = args[1]
-      logging.debug("%s reported queue size: %d MB" % size)
+      try:
+        size = int(args[1])
+      except ValueError:
+        size = 0
+      except IndexError:
+        logging.debug("SS_QUEUESIZE from %s received, but no arg?" % nick)
+        return
+
+      logging.debug("%s reported queue size: %d MB" % (nick, size))
       election.update(nick, size)
       jobs.add_job("election", time.time())
     elif ctcp_type == "SS_YIELD":
@@ -251,6 +258,9 @@ def check_connections():
 
 
 def check_queue():
+  if not svcclient:
+    return
+
   queue_size = svcclient.queue_size()
   if queue_size is None or queue_size == 0 or not svcclient.is_paused():
     return
@@ -269,7 +279,7 @@ def start_election():
 
 def check_election():
   global election
-  if election is None:
+  if not election or not svcclient:
     return
 
   # still waiting for results?
@@ -300,11 +310,13 @@ def check_election():
                 (bot.nick, queue_size))
 
   # did we win?
-  if winner == bot.nick:
+  if winner == bot.nick and queue_size > 0:
     logging.debug("winner, sending force yield")
     bot.send_yield()
     logging.debug("resuming client")
     resume()
+  elif winner == bot.nick and queue_size == 0:
+    logging.debug("won the election, but queue size is 0. ignoring.")
 
   election = None
 
