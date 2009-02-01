@@ -165,7 +165,7 @@ class Bot(irclib.SimpleIRCClient):
     elif command == "force":
       connection.privmsg(event.target(),
                          "Sending yield request and forcefully resuming.")
-      send_yield()
+      self.send_yield()
       resume()
 
   def on_ctcp(self, connection, event):
