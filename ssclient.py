@@ -30,6 +30,7 @@ feeds = None
 tracker = None
 election = None
 jobs = None
+state = None
 
 
 def sighup_handler(signum, frame):
@@ -48,6 +49,55 @@ def init_signals():
   import signal
   signal.signal(signal.SIGHUP, sighup_handler)
   signal.signal(signal.SIGINT, sigint_handler)
+
+
+class SvcshareState(object):
+  def __init__(self):
+    self._force_end_bytes = proxy.transferred()
+
+  def force(self, allotment=0):
+    self._force_end_bytes = proxy.transferred() + allotment * 1024 * 1024
+    self.resume()
+
+  def forced_diff(self):
+    """Get the remaining forced allotment in MB
+    """
+    diff = self._force_end_bytes - proxy.transferred()
+    if diff < 0:
+      diff = 0
+    return diff / 1024.0 / 1024.0
+
+  def unforce(self):
+    """Clear forced state
+    """
+    self._force_end_bytes = proxy.transferred()
+
+  def enqueue(self, nzbid):
+    if svcclient:
+      return svcclient.enqueue(nzbid)
+    else:
+      return False
+
+  def pause(self):
+    self.unforce()
+    proxy.pause()
+    if svcclient:
+      return svcclient.pause()
+    return True
+
+  def resume(self):
+    proxy.resume()
+    if svcclient:
+      return svcclient.resume()
+    return True
+
+  def is_paused(self):
+    if svcclient:
+      if not svcclient.is_paused():
+        return False
+    if not proxy.is_paused():
+      return False
+    return True
 
 
 class Bot(irclib.SimpleIRCClient):
@@ -115,12 +165,11 @@ class Bot(irclib.SimpleIRCClient):
       return
 
     msg = event.arguments()[0]
-    m = re.search(r"^\.ss (.+?) (.+?)\s*$", msg)
+    m = re.search(r"^\.ss\s+(.+?)\s+(.+?)(?: (.+?))?\s*$", msg)
 
     # .usenet
     if msg == ".usenet" and proxy.num_active() > 0:
-      active = proxy.num_active()
-      connection.privmsg(event.target(), "%d connections active" % active)
+      self.announce_status()
 
     # .ss version
     if msg == ".ss version":
@@ -130,14 +179,14 @@ class Bot(irclib.SimpleIRCClient):
     if not m:
       return
 
-    target, command = m.group(1), m.group(2)
+    target, command, ext = m.group(1), m.group(2), m.group(3)
     command = command.lower()
     if target.lower() != config.NICK.lower():
       return
 
     # pause
     if command == "pause":
-      if svcclient and pause():
+      if svcclient and state.pause():
         connection.privmsg(event.target(), "Paused client and proxy.")
       elif svcclient:
         connection.privmsg(event.target(),
@@ -145,50 +194,61 @@ class Bot(irclib.SimpleIRCClient):
       else:
         connection.privmsg(event.target(), "Paused proxy.")
 
-    # start an election (old resume)
+    # resume: start an election (old resume)
     elif command == "resume" or command == "continue" or command == "election":
-      connection.privmsg(event.target(),
-                         "Starting an election.")
       start_election()
+      connection.privmsg(event.target(),
+                         "Election started.")
 
     # eta
     elif command == "eta":
-      if svcclient:
-        eta_msg = svcclient.eta()
-        if eta_msg:
-          connection.privmsg(event.target(), eta_msg)
-      else:
-        connection.privmsg(event.target(),
-                           "Client does not provide queue access.")
+      self.announce_status()
 
-    # forcefully start downloading by yielding peers
+    # force: forcefully start downloading by yielding peers
     elif command == "force":
+      try:
+        min_mb = int(ext)
+      except TypeError:
+        min_mb = 0
+      except ValueError:
+        min_mb = 0
+      logging.debug("force for a minimum of %d MB" % min_mb)
       connection.privmsg(event.target(),
-                         "Sending yield request and forcefully resuming.")
+                         "Sending yield request and forcefully resuming. "
+                         "Minimum allotment: %d MB." % min_mb)
       self.send_yield()
-      resume()
+      state.force(allotment=min_mb)
 
   def on_ctcp(self, connection, event):
     args = event.arguments()
     ctcp_type = args[0]
     nick = event.source().split("!")[0]
 
+    # SS_ANNOUNCE (announce presence)
     if ctcp_type == "SS_ANNOUNCE":
       tracker.add(nick)  # add newcomer
       logging.debug("sending SS_ACK to %s" % nick)
       connection.ctcp("SS_ACK", nick, " ".join(args[1:]))
       logging.debug("current peers: %s" % str(tracker.peers()))
+
+    # SS_ACK (acknowledge presence)
     elif ctcp_type == "SS_ACK":
       tracker.add(nick)  # we're the newcomer, adding existing peers
       logging.debug("received ack from %s" % nick)
       logging.debug("current peers: %s" % str(tracker.peers()))
+
+    # SS_STARTELECTION
     elif ctcp_type == "SS_STARTELECTION":
-      queue_size = svcclient.queue_size()
-      if queue_size is None:
-        queue_size = 0
-      logging.debug("election request from %s; queue size: %d MB" %
-                    (nick, queue_size))
-      connection.ctcp("SS_QUEUESIZE", nick, "%s" % queue_size)
+      queue_size = svcclient and svcclient.queue_size() or 0
+      if state.forced_diff() > 0:
+        # we're in forced state, ignore election
+        logging.debug("election request from %s while in forced state" % nick)
+      else:
+        logging.debug("election request from %s, sending queue size: %d MB" %
+                      (nick, queue_size))
+        connection.ctcp("SS_QUEUESIZE", nick, "%s" % queue_size)
+
+    # SS_QUEUESIZE (during an election)
     elif ctcp_type == "SS_QUEUESIZE" and election:
       try:
         size = int(args[1])
@@ -201,10 +261,12 @@ class Bot(irclib.SimpleIRCClient):
       logging.debug("%s reported queue size: %d MB" % (nick, size))
       election.update(nick, size)
       jobs.add_job("election", time.time())
+
+    # SS_YIELD (give up the service)
     elif ctcp_type == "SS_YIELD":
-      if not is_paused():
-        connection.privmsg(self.channel, "Yield request received. Pausing...")
-        pause()
+      if not state.is_paused():
+        connection.privmsg(self.channel, "Yield request received. Pausing.")
+        state.pause()
 
   def connection_change(self, cur_count, elapsed, transferred):
     if cur_count == 0:
@@ -224,6 +286,23 @@ class Bot(irclib.SimpleIRCClient):
 
   def send_yield(self):
     self.connection.ctcp("SS_YIELD", self.channel)
+
+  def announce_status(self):
+    active = proxy.num_active()
+    conn_str = "%d conn" % active
+    forced_diff = state.forced_diff()
+    if forced_diff:
+      forced_str = ", force: %d MB" % forced_diff
+    else:
+      forced_str = ""
+
+    if svcclient:
+      eta_msg = svcclient.eta() or "Failed to retrieve queue status"
+    else:
+      eta_msg = "Client does not provide queue access"
+
+    self.connection.privmsg(self.channel, "%s (%s%s)" %
+                            (eta_msg, conn_str, forced_str))
 
 
 def check_connections():
@@ -305,8 +384,7 @@ def check_election():
       winner = peer
       queue_size = size
 
-  logging.debug("election winner: %s, queue size: %d MB" %
-                (bot.nick, queue_size))
+  logging.debug("election winner: %s, queue size: %d MB" % (winner, queue_size))
 
   # did we win?
   if winner == bot.nick and queue_size > 0:
@@ -316,7 +394,7 @@ def check_election():
     logging.debug("winner, sending force yield")
     bot.send_yield()
     logging.debug("resuming client")
-    resume()
+    state.resume()
   elif winner == bot.nick and queue_size == 0:
     bot.connection.privmsg(bot.channel,
                            "Election won, but queue is empty. Ignoring.")
@@ -337,36 +415,6 @@ def check_feeds():
         feeds.mark_old(entry)
         logging.info("Queued: %s (%s)" % (entry.title, id))
     feeds.save()
-
-
-def enqueue(nzbid):
-  if svcclient:
-    return svcclient.enqueue(nzbid)
-  else:
-    return False
-
-
-def pause():
-  proxy.pause()
-  if svcclient:
-    return svcclient.pause()
-  return True
-
-
-def resume():
-  proxy.resume()
-  if svcclient:
-    return svcclient.resume()
-  return True
-
-
-def is_paused():
-  if svcclient:
-    if not svcclient.is_paused():
-      return False
-  if not proxy.is_paused():
-    return False
-  return True
 
 
 def ircloop():
@@ -411,6 +459,7 @@ def main():
   global feeds
   global jobs
   global proxy
+  global state
   global svcclient
   global tracker
 
@@ -424,12 +473,18 @@ def main():
   # initialize signals
   init_signals()
 
+  # job queue
+  jobs = jobqueue.JobQueue()
+
   # set up connection proxy
   _local_addr = (config.LOCAL_HOST, config.LOCAL_PORT)
   _target_addr = (config.TARGET_HOST, config.TARGET_PORT)
   proxy = connectionproxy.ConnectionProxyServer(_local_addr, _target_addr)
   proxy.start()
   proxy.pause()
+
+  # state
+  state = SvcshareState()
 
   # set up access to service client
   if config.SERVICE_CLIENT != "proxy":
@@ -444,10 +499,6 @@ def main():
 
   # set up peer tracker (keep track of other bots)
   tracker = peertracker.PeerTracker()
-
-  # job queue
-  jobs = jobqueue.JobQueue()
-
 
   while True:
     try:
