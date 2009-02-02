@@ -85,6 +85,7 @@ class Bot(irclib.SimpleIRCClient):
     self.nick = nick
     self.connect(server, port, nick)
     self._nick_counter = 1
+    self._first_time = True
 
   def on_nicknameinuse(self, connection, event):
     # When nick is in use, append a number to the base nick.
@@ -110,6 +111,14 @@ class Bot(irclib.SimpleIRCClient):
     logging.debug("JOIN %s -> %s" % (nick, chan))
 
     if nick == self.nick and chan == self.channel:
+      if self._first_time:
+        # adding jobs to job queue
+        jobs.add_job(check_connections, delay=10, periodic=True)
+        jobs.add_job(check_feeds, delay=config.FEED_POLL_PERIOD, periodic=True)
+        jobs.add_job(check_queue, delay=10)
+        jobs.add_job(check_for_queue_transition, delay=60, periodic=True)
+        self._first_time = False
+
       logging.debug("Sending SS_ANNOUNCE")
       connection.ctcp("SS_ANNOUNCE", chan)
 
@@ -513,11 +522,6 @@ def version_string():
 
 
 def ircloop():
-  jobs.add_job(check_connections, delay=10, periodic=True)
-  jobs.add_job(check_feeds, delay=config.FEED_POLL_PERIOD, periodic=True)
-  jobs.add_job(check_queue, delay=10)
-  jobs.add_job(check_for_queue_transition, delay=60, periodic=True)
-
   while True:
     bot.ircobj.process_once(timeout=0.4)
 
