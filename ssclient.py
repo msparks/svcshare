@@ -430,6 +430,7 @@ def check_election():
     diff = list(set(tracker.peers()) - set(election.peers()))
     logging.debug("election failed. Failed to receive responses from: %s" %
                   ", ".join(diff))
+    election = None
     return
 
   # Results are in for a major election
