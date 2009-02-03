@@ -43,7 +43,7 @@ LOCAL_PORT = 8999
 # Newzbin feed information. Items posted to feeds will be queued automatically.
 #   FEED_DATA_FILE: file to keep record of which items have been queued
 #   FEED_POLL_PERIOD: how often to refresh feeds (seconds)
-#   NEWZBIN_FEEDS: list of URLs to feeds
+#   NEWZBIN_FEEDS: list of URLs to newzbin.com RSS feeds
 FEED_DATA_FILE = "feeds.dat"
 FEED_POLL_PERIOD = 600
 NEWZBIN_FEEDS = [
