@@ -499,12 +499,25 @@ def check_feeds():
   for url in config.NEWZBIN_FEEDS:
     if not url:
       continue
+
     entries = feeds.poll_feed(url)
     for entry in entries:
       id = feeds.extract_nzbid(entry.id)
+      title = entry.title
+      nfo = entry.get("filename") or entry.get("report_filename") or "no nfo"
+      if nfo[-4:] == ".nfo":
+        nfo = nfo[:-4]
+      size_b = entry.get("size") or entry.get("report_size") or 0
+      size_mb = int(size_b) / 1024.0 / 1024.0
+      msg = "[%d] %s [%s; %d MB]" % (id, title, nfo, size_mb)
+
+      # send message to bot owner
+      bot.connection.privmsg(config.NICK, msg)
+
       if svcclient.enqueue(id):
         feeds.mark_old(entry)
-        logging.info("Queued: %s (%s)" % (entry.title, id))
+        logging.info("Sent to client: %s" % msg)
+
     feeds.save()
 
 
