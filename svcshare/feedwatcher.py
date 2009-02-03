@@ -39,7 +39,7 @@ class Feedwatcher(object):
     return int(time.strftime("%s", t2)) - int(time.strftime("%s", t1))
 
   def extract_nzbid(self, url):
-    m = re.search(r"\/(\d+)$", url)
+    m = re.search(r"\/(\d+)/?$", url)
     if m:
       return int(m.group(1))
     else:
@@ -51,7 +51,10 @@ class Feedwatcher(object):
     Returns:
       True if the given entry is new
     """
-    postdate_parsed = time.strptime(entry.postdate,
+    postdate = entry.get("postdate") or entry.get("report_postdate")
+    if not postdate:
+      return True
+    postdate_parsed = time.strptime(postdate,
                                     "%a, %d %b %Y %H:%M:%S %Z");  # RFC 822
     if self.time_delta(postdate_parsed, time.localtime()) > age_threshold:
       return False
@@ -78,7 +81,9 @@ class Feedwatcher(object):
     for entry in feed.entries:
       if entry is None or not self._is_new(entry):
         continue
-      if self._require_nfo and not entry["filename"]:
+      if (self._require_nfo and
+          not entry.get("filename") and
+          not entry.get("report_filename")):
         continue
       new_entries.append(entry)
     return new_entries
