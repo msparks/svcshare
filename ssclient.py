@@ -514,7 +514,7 @@ def check_feeds():
       # send message to bot owner
       bot.connection.privmsg(config.NICK, msg)
 
-      if config.getattr("AUTO_QUEUE", True) and svcclient.enqueue(id):
+      if getattr(config, "AUTO_QUEUE", True)  and svcclient.enqueue(id):
         logging.info("Auto-queued: %s" % msg)
 
       feeds.mark_old(entry)
