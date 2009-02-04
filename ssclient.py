@@ -17,7 +17,7 @@ from svcshare import peertracker
 
 import config
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 cur_count = 0
 start_bytes_transferred = 0
@@ -333,7 +333,7 @@ class Bot(irclib.SimpleIRCClient):
     else:
       forced_str = ""
 
-    eta_msg = svcclient.eta() or "Failed to retrieve queue status"
+    eta_msg = svcclient.eta() or "Queue status unknown"
     self.connection.privmsg(self.channel, "%s (%s%s)" %
                             (eta_msg, conn_str, forced_str))
 
@@ -347,7 +347,7 @@ def check_connections():
   total_bytes_transferred = proxy.transferred()
   active = proxy.num_active()
 
-  if active != cur_count:
+  if active != cur_count and (active == 0 or cur_count == 0):
     pl = active == 1 and "connection" or "connections"
 
     # if establishing new connections, record start time
@@ -514,9 +514,10 @@ def check_feeds():
       # send message to bot owner
       bot.connection.privmsg(config.NICK, msg)
 
-      if svcclient.enqueue(id):
-        feeds.mark_old(entry)
-        logging.info("Sent to client: %s" % msg)
+      if config.getattr("AUTO_QUEUE", True) and svcclient.enqueue(id):
+        logging.info("Auto-queued: %s" % msg)
+
+      feeds.mark_old(entry)
 
     feeds.save()
 

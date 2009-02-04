@@ -32,6 +32,9 @@ SERVICE_CLIENT_URL = "http://hellanzb:foobar111@localhost:8760"
 # exists in the queue.
 AUTO_RESUME = True
 
+# Automatically add items from Newzbin RSS feeds to the queue.
+AUTO_QUEUE = True
+
 # Target host for the connection proxy.
 TARGET_HOST = "news.yourservice.com"
 TARGET_PORT = 563
