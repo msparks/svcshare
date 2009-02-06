@@ -20,15 +20,19 @@ class Report(object):
     params = urllib.urlencode(data)
     headers = {"Content-type": "application/x-www-form-urlencoded"}
 
-    parse = urlparse.urlparse(url)
-    hostname = parse.hostname
-    port = parse.port or 80
+    # pull hostname and port from URL
+    parse = urlparse.urlsplit(url)
+    split = parse[1].split(":")
+    if len(split) > 1:
+      hostname, port = split[0], split[1]
+    else:
+      hostname, port = split[0], 80
 
     if not hostname:
       return False
 
     try:
-      http = httplib.HTTPConnection(parse.netloc, parse.port)
+      http = httplib.HTTPConnection(hostname, port)
       http.request("POST", "/post", params, headers)
       resp = http.getresponse()
     except (socket.gaierror, socket.error):
