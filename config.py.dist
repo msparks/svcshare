@@ -43,6 +43,12 @@ TARGET_PORT = 563
 LOCAL_HOST = "localhost"
 LOCAL_PORT = 8999
 
+# Reporting: send metadata to svcshare web app. Comment out to disable.
+#   REPORTER_URL: URL of svcshare web app
+#   REPORTER_KEY: private key assigned to you by web app admin
+#REPORTER_URL = "http://foo"
+#REPORTER_KEY = "fc8b89276b8022f74d8a517ab74dfb2288bc285cbd906eedcc0aaeabef356da2"
+
 # Newzbin feed information. Items posted to feeds will be queued automatically.
 #   FEED_DATA_FILE: file to keep record of which items have been queued
 #   FEED_POLL_PERIOD: how often to refresh feeds (seconds)

@@ -14,6 +14,7 @@ from svcshare import feedwatcher
 from svcshare import irclib
 from svcshare import jobqueue
 from svcshare import peertracker
+from svcshare import reporter
 
 import config
 
@@ -364,8 +365,14 @@ def check_connections():
 
     cur_count = active
 
-    # notify
+    # notify to IRC
     bot.connection_change(cur_count, elapsed, tx)
+
+    # report to webapp
+    if active == 0 and getattr(config, "REPORTER_URL"):
+      report = reporter.Report(tx, elapsed)
+      report.send(getattr(config, "REPORTER_URL"),
+                  getattr(config, "REPORTER_KEY"))
 
 
 def check_for_queue_transition():
