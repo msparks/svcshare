@@ -34,7 +34,7 @@ jobs = None
 state = None
 
 last_major_election = 0  # epoch of last major election
-last_queue_size = None
+last_queue_size = 0
 
 
 def sighup_handler(signum, frame):
@@ -369,10 +369,10 @@ def check_connections():
     bot.connection_change(cur_count, elapsed, tx)
 
     # report to webapp
-    if active == 0 and getattr(config, "REPORTER_URL"):
+    if active == 0 and getattr(config, "REPORTER_URL", None):
       report = reporter.Report(tx, elapsed)
-      report.send(getattr(config, "REPORTER_URL"),
-                  getattr(config, "REPORTER_KEY"))
+      report.send(getattr(config, "REPORTER_URL", ""),
+                  getattr(config, "REPORTER_KEY", ""))
 
 
 def check_for_queue_transition():
@@ -383,13 +383,10 @@ def check_for_queue_transition():
   global last_queue_size
   queue_size = svcclient.queue_size()
 
-  if last_queue_size is None:
-    last_queue_size = queue_size
-    return
-
   if last_queue_size == 0 and queue_size > 0 and svcclient.is_paused():
     # an item was queued since we last checked, start minor election
     logging.debug("noticed queue transition from empty to non-empty")
+
     if config.AUTO_RESUME:
       start_election(major=False)
     else:
