@@ -18,7 +18,7 @@ from svcshare import reporter
 
 import config
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 cur_count = 0
 start_bytes_transferred = 0
