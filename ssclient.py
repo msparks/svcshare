@@ -405,7 +405,6 @@ def check_queue():
 
   # Call a major election if possible.
   if last_major_election + 1800 < time.time():
-    jobs.add_job(check_queue, delay=1800)
     start_election(major=True)
   # Last election was too recent, start a minor election.
   else:
@@ -419,6 +418,7 @@ def start_election(major=True):
   if major:
     logging.debug("starting major election")
     last_major_election = time.time()
+    jobs.add_job(check_queue, delay=1800)
   else:
     logging.debug("starting minor election")
 
