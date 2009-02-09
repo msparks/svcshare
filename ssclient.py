@@ -87,10 +87,6 @@ class BotMsgCallbacks(object):
   msg_status = msg_eta
 
   def msg_force(self, bot, event, target, ext):
-    if state.halted():
-      bot.send_halt_error(target)
-      return
-
     try:
       min_mb = int(ext)
     except (TypeError, ValueError):
@@ -99,6 +95,9 @@ class BotMsgCallbacks(object):
     bot.connection.privmsg(target,
                            "Resuming. Forced allotment: %d MB." % min_mb)
     bot.send_yield()
+    if state.halted():
+      logging.debug("unhalting")
+      state.unhalt()
     state.force(allotment=min_mb)
 
   def msg_halt(self, bot, event, target, ext):
