@@ -18,7 +18,7 @@ from svcshare import reporter
 
 import config
 
-__version__ = "0.2.4"
+__version__ = "0.3.0"
 
 cur_count = 0
 start_bytes_transferred = 0
@@ -58,12 +58,13 @@ def init_signals():
 class SvcshareState(object):
   def __init__(self):
     self._force_end_bytes = proxy.transferred()
+    self._halt_end_time = time.time()
 
   def force(self, allotment=0):
     self._force_end_bytes = proxy.transferred() + allotment * 1024 * 1024
     svcclient.resume()
 
-  def forced_diff(self):
+  def force_diff(self):
     """Get the remaining forced allotment in MB
     """
     diff = self._force_end_bytes - proxy.transferred()
@@ -76,6 +77,36 @@ class SvcshareState(object):
     """
     self._force_end_bytes = proxy.transferred()
 
+  def halt(self, minutes=0):
+    """Put system into a halted state.
+
+    Args:
+      minutes: how long to maintain halted state (0 = until manually unhalted)
+    """
+    if minutes > 0:
+      self._halt_end_time = time.time() + minutes * 60
+    else:
+      self._halt_end_time = 0
+
+  def halt_diff(self):
+    """Seconds left before halt ends.
+
+    Returns:
+      seconds value or None if permanent halt is in effect
+    """
+    if self._halt_end_time == 0:
+      return None
+    else:
+      diff = self._halt_end_time - time.time()
+      if diff < 0:
+        return 0
+      return diff
+
+  def unhalt(self):
+    """Cancel current halt state.
+    """
+    self._halt_end_time = time.time()
+
 
 class Bot(irclib.SimpleIRCClient):
   def __init__(self, server, port, nick, channel):
@@ -87,6 +118,48 @@ class Bot(irclib.SimpleIRCClient):
     self.connect(server, port, nick)
     self._nick_counter = 1
     self._first_time = True
+
+  def announce_status(self):
+    active = proxy.num_active()
+    conn_str = "%d conn" % active
+    force_diff = state.force_diff()
+    if force_diff:
+      forced_str = ", force: %d MB" % force_diff
+    else:
+      forced_str = ""
+
+    eta_msg = svcclient.eta() or "Queue status unknown"
+    self.connection.privmsg(self.channel, "%s (%s%s)" %
+                            (eta_msg, conn_str, forced_str))
+
+  def connection_change(self, cur_count, elapsed, transferred):
+    if cur_count == 0:
+      min = elapsed / 60
+      sec = elapsed % 60
+      mb = transferred / 1024 / 1024
+      rate = (transferred / 1024) / elapsed
+
+      msg = ("0 connections. [%d MB in %dm%ds (%d KB/s)]" %
+             (mb, min, sec, rate))
+      self.connection.privmsg(self.channel, msg)
+    else:
+      self.announce_status()
+
+    self.send_connupdate(self.channel)
+
+  def send_yield(self):
+    self.connection.ctcp("SS_YIELD", self.channel)
+
+  def send_startelection(self):
+    self.connection.ctcp("SS_STARTELECTION", self.channel)
+
+  def send_connstat(self):
+    self.connection.ctcp("SS_CONNSTAT", self.channel)
+
+  def send_connupdate(self, target):
+    count = proxy.num_active()
+    self.connection.ctcp("SS_CONNUPDATE", target,
+                         "%s %d" % (config.NICK, count))
 
   def on_nicknameinuse(self, connection, event):
     # When nick is in use, append a number to the base nick.
@@ -130,13 +203,22 @@ class Bot(irclib.SimpleIRCClient):
 
     if chan == self.channel:
       tracker.remove(nick)
-      logging.debug("current peers: %s" % str(tracker.peers()))
+      logging.debug("current peers: %s" % ", ".join(tracker.peers()))
 
   def on_quit(self, connection, event):
     nick = event.source().split("!")[0]
     logging.debug("QUIT %s" % nick)
     tracker.remove(nick)
-    logging.debug("current peers: %s" % str(tracker.peers()))
+    logging.debug("current peers: %s" % ", ".join(tracker.peers()))
+
+  def on_kick(self, connection, event):
+    kicked_nick = event.arguments()[0]
+    chan = event.target()
+    logging.debug("KICK %s <- %s" % (kicked_nick, chan))
+
+    if chan == self.channel:
+      tracker.remove(nick)
+      logging.debug("current peers: %s" % ", ".join(tracker.peers()))
 
   def on_nick(self, connection, event):
     old_nick = event.source().split("!")[0]
@@ -152,14 +234,16 @@ class Bot(irclib.SimpleIRCClient):
 
     nick = event.source().split("!")[0]
     msg = event.arguments()[0]
-    m = re.search(r"^\.ss\s+(.+?)\s+(.+?)(?: (.+?))?\s*$", msg)
+    #m = re.search(r"^\.ss\s+(.+?)\s+(.+?)(?: (.+?))?\s*$", msg)
+    m = re.search(r"^(%s):\s*(.+?)(?:\s+(.+?))?\s*$" % re.escape(self.nick),
+                  msg)
 
     # .usenet
     if msg == ".usenet" and proxy.num_active() > 0:
       self.announce_status()
 
     # .ss version
-    if msg == ".ss version":
+    if msg == ".version":
       connection.privmsg(event.target(),
                          "svcshare version %s" % version_string())
 
@@ -168,7 +252,7 @@ class Bot(irclib.SimpleIRCClient):
 
     target, command, ext = m.group(1), m.group(2), m.group(3)
     command = command.lower()
-    if target.lower() != config.NICK.lower():
+    if target.lower() != self.nick.lower():
       return
 
     # pause
@@ -236,7 +320,7 @@ class Bot(irclib.SimpleIRCClient):
     # SS_STARTELECTION
     elif ctcp_type == "SS_STARTELECTION":
       queue_size = svcclient and svcclient.queue_size() or 0
-      if state.forced_diff() > 0:
+      if state.force_diff() > 0:
         # we're in forced state, ignore election
         logging.debug("election request from %s while in forced state" % nick)
       else:
@@ -295,48 +379,6 @@ class Bot(irclib.SimpleIRCClient):
     # SS_CONNSTAT (request for number of connections)
     elif ctcp_type == "SS_CONNSTAT":
       self.send_connupdate(nick)
-
-  def connection_change(self, cur_count, elapsed, transferred):
-    if cur_count == 0:
-      min = elapsed / 60
-      sec = elapsed % 60
-      mb = transferred / 1024 / 1024
-      rate = (transferred / 1024) / elapsed
-
-      msg = ("0 connections. [%d MB in %dm%ds (%d KB/s)]" %
-             (mb, min, sec, rate))
-      self.connection.privmsg(self.channel, msg)
-    else:
-      self.announce_status()
-
-    self.send_connupdate(self.channel)
-
-  def send_yield(self):
-    self.connection.ctcp("SS_YIELD", self.channel)
-
-  def send_startelection(self):
-    self.connection.ctcp("SS_STARTELECTION", self.channel)
-
-  def send_connstat(self):
-    self.connection.ctcp("SS_CONNSTAT", self.channel)
-
-  def send_connupdate(self, target):
-    count = proxy.num_active()
-    self.connection.ctcp("SS_CONNUPDATE", target,
-                         "%s %d" % (config.NICK, count))
-
-  def announce_status(self):
-    active = proxy.num_active()
-    conn_str = "%d conn" % active
-    forced_diff = state.forced_diff()
-    if forced_diff:
-      forced_str = ", force: %d MB" % forced_diff
-    else:
-      forced_str = ""
-
-    eta_msg = svcclient.eta() or "Queue status unknown"
-    self.connection.privmsg(self.channel, "%s (%s%s)" %
-                            (eta_msg, conn_str, forced_str))
 
 
 def check_connections():

@@ -38,6 +38,8 @@ class HellanzbControl(object):
     for item in resp["queued"]:
       if "total_mb" in item:
         queue_size += item["total_mb"]
+      else:
+        queue_size += 1  # sometimes items don't list size
 
     queue_items = len(resp["queued"])
     speed = resp["rate"]
