@@ -216,9 +216,12 @@ class Bot(irclib.SimpleIRCClient):
     chan = event.target()
     logging.debug("KICK %s <- %s" % (kicked_nick, chan))
 
-    if chan == self.channel:
+    if chan == self.channel and kicked_nick != self.nick:
       tracker.remove(nick)
       logging.debug("current peers: %s" % ", ".join(tracker.peers()))
+    elif kicked_nick == self.nick:
+      logging.debug("Attempting to rejoin %s" % self.channel)
+      connection.join(self.channel)
 
   def on_nick(self, connection, event):
     old_nick = event.source().split("!")[0]
@@ -309,13 +312,13 @@ class Bot(irclib.SimpleIRCClient):
       tracker.add(nick)  # add newcomer
       logging.debug("sending SS_ACK to %s" % nick)
       connection.ctcp("SS_ACK", nick, " ".join(args[1:]))
-      logging.debug("current peers: %s" % str(tracker.peers()))
+      logging.debug("current peers: %s" % ", ".join(tracker.peers()))
 
     # SS_ACK (acknowledge presence)
     elif ctcp_type == "SS_ACK":
       tracker.add(nick)  # we're the newcomer, adding existing peers
       logging.debug("received ack from %s" % nick)
-      logging.debug("current peers: %s" % str(tracker.peers()))
+      logging.debug("current peers: %s" % ", ".join(tracker.peers()))
 
     # SS_STARTELECTION
     elif ctcp_type == "SS_STARTELECTION":
