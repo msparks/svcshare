@@ -57,6 +57,10 @@ def init_signals():
 
 class BotMsgCallbacks(object):
   def msg_election(self, bot, event, target, ext):
+    if state.halted():
+      bot.send_halt_error(target)
+      return
+
     start_election()
     bot.connection.privmsg(target, "Election started.")
   msg_resume = msg_election
@@ -80,13 +84,16 @@ class BotMsgCallbacks(object):
 
   def msg_eta(self, bot, event, target, ext):
     bot.announce_status(target)
+  msg_status = msg_eta
 
   def msg_force(self, bot, event, target, ext):
+    if state.halted():
+      bot.send_halt_error(target)
+      return
+
     try:
       min_mb = int(ext)
-    except TypeError:
-      min_mb = 0
-    except ValueError:
+    except (TypeError, ValueError):
       min_mb = 0
     logging.debug("force for a minimum of %d MB" % min_mb)
     bot.connection.privmsg(target,
@@ -94,13 +101,36 @@ class BotMsgCallbacks(object):
     bot.send_yield()
     state.force(allotment=min_mb)
 
+  def msg_halt(self, bot, event, target, ext):
+    try:
+      minutes = int(ext)
+    except (TypeError, ValueError):
+      minutes = 0
+      time_str = "indefinitely"
+    else:
+      time_str = "for %d minutes" % minutes
+    logging.debug("halting %s" % time_str)
+    bot.connection.privmsg(target, "Halting %s." % time_str)
+    svcclient.pause()
+    state.unforce()
+    state.halt(minutes)
+
+  def msg_unhalt(self, bot, event, target, ext):
+    if state.halted():
+      state.unhalt()
+      jobs.add_job(check_queue)
+      logging.debug("unhalted")
+      bot.connection.privmsg(target, "Unhalted.")
+    else:
+      bot.connection.privmsg(target, "System was not in halted state.")
+
   def msg_pause(self, bot, event, target, ext):
     if svcclient.pause():
-      state.unforce()
       bot.connection.privmsg(target, "Paused client.")
     else:
       bot.connection.privmsg(target,
                              "Paused proxy. Failed to pause client.")
+    state.unforce()
 
   def msg_version(self, bot, event, target, ext):
     bot.connection.privmsg(target, "svcshare version %s" % version_string())
@@ -183,8 +213,8 @@ class BotCtcpCallbacks(BotMsgCallbacks):
     """Yield request"""
     if not svcclient.is_paused():
       bot.connection.privmsg(self.channel, "Yield request received. Pausing.")
-      state.unforce()
       svcclient.pause()
+      state.unforce()
 
 
 class BotCallbacks(BotCtcpCallbacks):
@@ -207,6 +237,14 @@ class SvcshareState(object):
     if diff < 0:
       diff = 0
     return diff / 1024.0 / 1024.0
+
+  def forced(self):
+    """Determine if a force is in effect.
+
+    Returns:
+      True if force is in effect.
+    """
+    return (self.force_diff() > 0)
 
   def unforce(self):
     """Clear forced state
@@ -238,6 +276,15 @@ class SvcshareState(object):
         return 0
       return diff
 
+  def halted(self):
+    """Determine if system is in halted state.
+
+    Returns:
+      True if system is halted, False otherwise
+    """
+    d = self.halt_diff()
+    return (d is None or d > 0)
+
   def unhalt(self):
     """Cancel current halt state.
     """
@@ -258,16 +305,19 @@ class Bot(irclib.SimpleIRCClient):
 
   def announce_status(self, target):
     active = proxy.num_active()
-    conn_str = "%d conn" % active
-    force_diff = state.force_diff()
-    if force_diff:
-      forced_str = ", force: %d MB" % force_diff
-    else:
-      forced_str = ""
+    extra = ["%d conn" % active]
+
+    if state.forced():
+      extra.append("force: %d MB" % state.force_diff())
+
+    if state.halted() and state.halt_diff():
+      min = state.halt_diff() / 60
+      extra.append("halted: %dm" % min)
+    elif state.halted():
+      extra.append("halted")
 
     eta_msg = svcclient.eta() or "Queue status unknown"
-    self.connection.privmsg(target, "%s (%s%s)" %
-                            (eta_msg, conn_str, forced_str))
+    self.connection.privmsg(target, "%s (%s)" % (eta_msg, ", ".join(extra)))
 
   def connection_change(self, cur_count, elapsed, transferred):
     if cur_count == 0:
@@ -297,6 +347,17 @@ class Bot(irclib.SimpleIRCClient):
     count = proxy.num_active()
     self.connection.ctcp("SS_CONNUPDATE", target,
                          "%s %d" % (config.NICK, count))
+
+  def send_halt_error(self, target):
+    halt_diff = state.halt_diff()
+    if halt_diff:
+      min = halt_diff / 60
+      pl = min == 1 and "minute" or "minutes"
+      self.connection.privmsg(target,
+                              "System is halted for another %d %s." %
+                              (min, pl))
+    else:
+      self.connection.privmsg(target, "System is indefinitely halted.")
 
   def on_nicknameinuse(self, connection, event):
     # When nick is in use, append a number to the base nick.
@@ -462,6 +523,9 @@ def check_for_queue_transition():
 
   If so, call a minor election.
   """
+  if state.halted():
+    return
+
   global last_queue_size
   queue_size = svcclient.queue_size()
 
@@ -479,6 +543,8 @@ def check_for_queue_transition():
 
 def check_queue():
   if not svcclient.queue_size() or not svcclient.is_paused():
+    return
+  if state.halted():
     return
 
   # we have a queue and we're currently paused. Investigate options.
