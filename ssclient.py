@@ -56,35 +56,11 @@ def init_signals():
 
 
 class BotMsgCallbacks(object):
-  def msg_pause(self, bot, event, target, ext):
-    if svcclient.pause():
-      state.unforce()
-      bot.connection.privmsg(target, "Paused client.")
-    else:
-      bot.connection.privmsg(target,
-                             "Paused proxy. Failed to pause client.")
-
   def msg_election(self, bot, event, target, ext):
     start_election()
     bot.connection.privmsg(target, "Election started.")
   msg_resume = msg_election
   msg_continue = msg_election
-
-  def msg_eta(self, bot, event, target, ext):
-    bot.announce_status(target)
-
-  def msg_force(self, bot, event, target, ext):
-    try:
-      min_mb = int(ext)
-    except TypeError:
-      min_mb = 0
-    except ValueError:
-      min_mb = 0
-    logging.debug("force for a minimum of %d MB" % min_mb)
-    bot.connection.privmsg(target,
-                           "Resuming. Forced allotment: %d MB." % min_mb)
-    bot.send_yield()
-    state.force(allotment=min_mb)
 
   def msg_enqueue(self, bot, event, target, ext):
     # verify caller is owner
@@ -102,11 +78,41 @@ class BotMsgCallbacks(object):
       bot.connection.privmsg(target, "Failed to queue items.")
   msg_enq = msg_enqueue
 
+  def msg_eta(self, bot, event, target, ext):
+    bot.announce_status(target)
+
+  def msg_force(self, bot, event, target, ext):
+    try:
+      min_mb = int(ext)
+    except TypeError:
+      min_mb = 0
+    except ValueError:
+      min_mb = 0
+    logging.debug("force for a minimum of %d MB" % min_mb)
+    bot.connection.privmsg(target,
+                           "Resuming. Forced allotment: %d MB." % min_mb)
+    bot.send_yield()
+    state.force(allotment=min_mb)
+
+  def msg_pause(self, bot, event, target, ext):
+    if svcclient.pause():
+      state.unforce()
+      bot.connection.privmsg(target, "Paused client.")
+    else:
+      bot.connection.privmsg(target,
+                             "Paused proxy. Failed to pause client.")
+
   def msg_version(self, bot, event, target, ext):
     bot.connection.privmsg(target, "svcshare version %s" % version_string())
 
 
 class BotCtcpCallbacks(BotMsgCallbacks):
+  def ctcp_ack(self, bot, event, nick, args):
+    """Presence acknowledgement"""
+    tracker.add(nick)  # we're the newcomer, adding existing peers
+    logging.debug("received ack from %s" % nick)
+    logging.debug("current peers: %s" % ", ".join(tracker.peers()))
+
   def ctcp_announce(self, bot, event, nick, args):
     """Presence announcement"""
     tracker.add(nick)  # add newcomer
@@ -114,39 +120,9 @@ class BotCtcpCallbacks(BotMsgCallbacks):
     bot.connection.ctcp("SS_ACK", nick, " ".join(args[1:]))
     logging.debug("current peers: %s" % ", ".join(tracker.peers()))
 
-  def ctcp_ack(self, bot, event, nick, args):
-    """Presence acknowledgement"""
-    tracker.add(nick)  # we're the newcomer, adding existing peers
-    logging.debug("received ack from %s" % nick)
-    logging.debug("current peers: %s" % ", ".join(tracker.peers()))
-
-  def ctcp_startelection(self, bot, event, nick, args):
-    """Start an election"""
-    queue_size = svcclient and svcclient.queue_size() or 0
-    if state.force_diff() > 0:
-      # we're in forced state, ignore election
-      logging.debug("election request from %s while in forced state" % nick)
-    else:
-      logging.debug("election request from %s, sending queue size: %d MB" %
-                    (nick, queue_size))
-      bot.connection.ctcp("SS_QUEUESIZE", nick, "%s" % queue_size)
-
-  def ctcp_queuesize(self, bot, event, nick, args):
-    """Queue size request during an election"""
-    if not election:
-      return
-
-    try:
-      size = int(args[1])
-    except ValueError:
-      size = 0
-    except IndexError:
-      logging.debug("SS_QUEUESIZE from %s received, but no arg?" % nick)
-      return
-
-    logging.debug("%s reported queue size: %d MB" % (nick, size))
-    election.update(nick, size)
-    jobs.add_job(check_election)
+  def ctcp_connstat(self, bot, event, nick, args):
+    """Request for connections status"""
+    bot.send_connupdate(nick)
 
   def ctcp_connupdate(self, bot, event, nick, args):
     """Connections update after a CONNSTAT"""
@@ -175,9 +151,33 @@ class BotCtcpCallbacks(BotMsgCallbacks):
       jobs.add_job(check_queue, delay=delay)
       logging.debug("checking queue in %d seconds" % delay)
 
-  def ctcp_connstat(self, bot, event, nick, args):
-    """Request for connections status"""
-    bot.send_connupdate(nick)
+  def ctcp_queuesize(self, bot, event, nick, args):
+    """Queue size request during an election"""
+    if not election:
+      return
+
+    try:
+      size = int(args[1])
+    except ValueError:
+      size = 0
+    except IndexError:
+      logging.debug("SS_QUEUESIZE from %s received, but no arg?" % nick)
+      return
+
+    logging.debug("%s reported queue size: %d MB" % (nick, size))
+    election.update(nick, size)
+    jobs.add_job(check_election)
+
+  def ctcp_startelection(self, bot, event, nick, args):
+    """Start an election"""
+    queue_size = svcclient and svcclient.queue_size() or 0
+    if state.force_diff() > 0:
+      # we're in forced state, ignore election
+      logging.debug("election request from %s while in forced state" % nick)
+    else:
+      logging.debug("election request from %s, sending queue size: %d MB" %
+                    (nick, queue_size))
+      bot.connection.ctcp("SS_QUEUESIZE", nick, "%s" % queue_size)
 
   def ctcp_yield(self, bot, event, nick, args):
     """Yield request"""
