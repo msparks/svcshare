@@ -189,6 +189,7 @@ class Bot(irclib.SimpleIRCClient):
         # adding jobs to job queue
         jobs.add_job(check_connections, delay=10, periodic=True)
         jobs.add_job(check_feeds, delay=config.FEED_POLL_PERIOD, periodic=True)
+        jobs.add_job(check_queue, delay=1800, periodic=True)
         jobs.add_job(check_queue, delay=10)
         jobs.add_job(check_for_queue_transition, delay=60, periodic=True)
         self._first_time = False
@@ -463,7 +464,6 @@ def start_election(major=True):
   if major:
     logging.debug("starting major election")
     last_major_election = time.time()
-    jobs.add_job(check_queue, delay=1800)
   else:
     logging.debug("starting minor election")
 
