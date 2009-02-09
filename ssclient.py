@@ -55,6 +55,142 @@ def init_signals():
   signal.signal(signal.SIGINT, sigint_handler)
 
 
+class BotMsgCallbacks(object):
+  def msg_pause(self, bot, event, target, ext):
+    if svcclient.pause():
+      state.unforce()
+      bot.connection.privmsg(target, "Paused client.")
+    else:
+      bot.connection.privmsg(target,
+                             "Paused proxy. Failed to pause client.")
+
+  def msg_election(self, bot, event, target, ext):
+    start_election()
+    bot.connection.privmsg(target, "Election started.")
+  msg_resume = msg_election
+  msg_continue = msg_election
+
+  def msg_eta(self, bot, event, target, ext):
+    bot.announce_status(target)
+
+  def msg_force(self, bot, event, target, ext):
+    try:
+      min_mb = int(ext)
+    except TypeError:
+      min_mb = 0
+    except ValueError:
+      min_mb = 0
+    logging.debug("force for a minimum of %d MB" % min_mb)
+    bot.connection.privmsg(target,
+                           "Resuming. Forced allotment: %d MB." % min_mb)
+    bot.send_yield()
+    state.force(allotment=min_mb)
+
+  def msg_enqueue(self, bot, event, target, ext):
+    # verify caller is owner
+    if event.source().split("!")[0] != config.NICK:
+      return
+
+    ids = ext.split(" ")
+    qd_ids = []
+    for id in ids:
+      if id and svcclient.enqueue(id):
+        qd_ids.append(id)
+    if qd_ids:
+      bot.connection.privmsg(target, "Queued: %s" % ", ".join(qd_ids))
+    else:
+      bot.connection.privmsg(target, "Failed to queue items.")
+  msg_enq = msg_enqueue
+
+  def msg_version(self, bot, event, target, ext):
+    bot.connection.privmsg(target, "svcshare version %s" % version_string())
+
+
+class BotCtcpCallbacks(BotMsgCallbacks):
+  def ctcp_announce(self, bot, event, nick, args):
+    """Presence announcement"""
+    tracker.add(nick)  # add newcomer
+    logging.debug("sending SS_ACK to %s" % nick)
+    bot.connection.ctcp("SS_ACK", nick, " ".join(args[1:]))
+    logging.debug("current peers: %s" % ", ".join(tracker.peers()))
+
+  def ctcp_ack(self, bot, event, nick, args):
+    """Presence acknowledgement"""
+    tracker.add(nick)  # we're the newcomer, adding existing peers
+    logging.debug("received ack from %s" % nick)
+    logging.debug("current peers: %s" % ", ".join(tracker.peers()))
+
+  def ctcp_startelection(self, bot, event, nick, args):
+    """Start an election"""
+    queue_size = svcclient and svcclient.queue_size() or 0
+    if state.force_diff() > 0:
+      # we're in forced state, ignore election
+      logging.debug("election request from %s while in forced state" % nick)
+    else:
+      logging.debug("election request from %s, sending queue size: %d MB" %
+                    (nick, queue_size))
+      bot.connection.ctcp("SS_QUEUESIZE", nick, "%s" % queue_size)
+
+  def ctcp_queuesize(self, bot, event, nick, args):
+    """Queue size request during an election"""
+    if not election:
+      return
+
+    try:
+      size = int(args[1])
+    except ValueError:
+      size = 0
+    except IndexError:
+      logging.debug("SS_QUEUESIZE from %s received, but no arg?" % nick)
+      return
+
+    logging.debug("%s reported queue size: %d MB" % (nick, size))
+    election.update(nick, size)
+    jobs.add_job(check_election)
+
+  def ctcp_connupdate(self, bot, event, nick, args):
+    """Connections update after a CONNSTAT"""
+    if " " in args[1]:
+      owner_nick, count = args[1].split(" ")
+    else:
+      count = args[1]
+
+    try:
+      count = int(count)
+    except ValueError:
+      logging.debug("received bogus data for SS_CONNUPDATE from %s: %s" %
+                    (nick, args[2]))
+      return
+    except IndexError:
+      logging.debug("received no data for SS_CONNUPDATE from %s" % nick)
+      logging.debug("args: %s" % str(args))
+      return
+
+    if election:
+      logging.debug("%s reported %d connections" % (nick, count))
+      election.update(nick, count)
+      jobs.add_job(check_election)
+    elif not election and count == 0 and svcclient.queue_size():
+      delay = random.randint(60, 120)
+      jobs.add_job(check_queue, delay=delay)
+      logging.debug("checking queue in %d seconds" % delay)
+
+  def ctcp_connstat(self, bot, event, nick, args):
+    """Request for connections status"""
+    bot.send_connupdate(nick)
+
+  def ctcp_yield(self, bot, event, nick, args):
+    """Yield request"""
+    if not svcclient.is_paused():
+      bot.connection.privmsg(self.channel, "Yield request received. Pausing.")
+      state.unforce()
+      svcclient.pause()
+
+
+class BotCallbacks(BotCtcpCallbacks):
+  pass
+
+
 class SvcshareState(object):
   def __init__(self):
     self._force_end_bytes = proxy.transferred()
@@ -109,17 +245,18 @@ class SvcshareState(object):
 
 
 class Bot(irclib.SimpleIRCClient):
-  def __init__(self, server, port, nick, channel):
+  def __init__(self, server, port, nick, channel, cb):
     irclib.SimpleIRCClient.__init__(self)
     self.server = server
     self.port = port
     self.channel = channel
     self.nick = nick
     self.connect(server, port, nick)
+    self.cb = cb
     self._nick_counter = 1
     self._first_time = True
 
-  def announce_status(self):
+  def announce_status(self, target):
     active = proxy.num_active()
     conn_str = "%d conn" % active
     force_diff = state.force_diff()
@@ -129,7 +266,7 @@ class Bot(irclib.SimpleIRCClient):
       forced_str = ""
 
     eta_msg = svcclient.eta() or "Queue status unknown"
-    self.connection.privmsg(self.channel, "%s (%s%s)" %
+    self.connection.privmsg(target, "%s (%s%s)" %
                             (eta_msg, conn_str, forced_str))
 
   def connection_change(self, cur_count, elapsed, transferred):
@@ -143,7 +280,7 @@ class Bot(irclib.SimpleIRCClient):
              (mb, min, sec, rate))
       self.connection.privmsg(self.channel, msg)
     else:
-      self.announce_status()
+      self.announce_status(self.channel)
 
     self.send_connupdate(self.channel)
 
@@ -232,157 +369,56 @@ class Bot(irclib.SimpleIRCClient):
       logging.debug("new bot nick is %s" % self.nick)
     tracker.rename(old_nick, nick)
 
+  def on_privmsg(self, connection, event):
+    nick = event.source().split("!")[0]
+    msg = event.arguments()[0]
+    m = re.search(r"^\s*(.+?)(?:\s+(.+?))?\s*$", msg)
+    if not m:
+      return
+    command, ext = m.group(1).lower(), m.group(2)
+
+    callback = getattr(self.cb, "msg_%s" % command, None)
+    if callback is not None:
+      # jump to callback
+      callback(self, event, nick, ext)
+
   def on_pubmsg(self, connection, event):
     if event.target() != self.channel:
       return
 
-    nick = event.source().split("!")[0]
     msg = event.arguments()[0]
-    #m = re.search(r"^\.ss\s+(.+?)\s+(.+?)(?: (.+?))?\s*$", msg)
-    m = re.search(r"^(%s):\s*(.+?)(?:\s+(.+?))?\s*$" % re.escape(self.nick),
-                  msg)
 
     # .usenet
     if msg == ".usenet" and proxy.num_active() > 0:
-      self.announce_status()
+      self.cb.msg_eta(self, event, event.target(), "")
 
-    # .ss version
+    # .version
     if msg == ".version":
-      connection.privmsg(event.target(),
-                         "svcshare version %s" % version_string())
+      self.cb.msg_version(self, event)
 
+    m = re.search(r"^(%s):\s*(.+?)(?:\s+(.+?))?\s*$" % re.escape(self.nick),
+                  msg)
     if not m:
       return
 
-    target, command, ext = m.group(1), m.group(2), m.group(3)
-    command = command.lower()
+    target, command, ext = m.group(1), m.group(2).lower(), m.group(3)
     if target.lower() != self.nick.lower():
       return
 
-    # pause
-    if command == "pause":
-      if svcclient.pause():
-        state.unforce()
-        connection.privmsg(event.target(), "Paused client.")
-      else:
-        connection.privmsg(event.target(),
-                           "Paused proxy. Failed to pause client.")
-
-    # resume: start an election (old resume)
-    elif command == "resume" or command == "continue" or command == "election":
-      start_election()
-      connection.privmsg(event.target(), "Election started.")
-
-    # eta
-    elif command == "eta":
-      self.announce_status()
-
-    # force: forcefully start downloading by yielding peers
-    elif command == "force":
-      try:
-        min_mb = int(ext)
-      except TypeError:
-        min_mb = 0
-      except ValueError:
-        min_mb = 0
-      logging.debug("force for a minimum of %d MB" % min_mb)
-      connection.privmsg(event.target(),
-                         "Resuming. Forced allotment: %d MB." % min_mb)
-      self.send_yield()
-      state.force(allotment=min_mb)
-
-    # enqueue
-    elif nick == config.NICK and (command == "enq" or command == "enqueue"):
-      ids = ext.split(" ")
-      qd_ids = []
-      for id in ids:
-        if id and svcclient.enqueue(id):
-          qd_ids.append(id)
-      if qd_ids:
-        connection.privmsg(event.target(), "Queued: %s" % ", ".join(qd_ids))
-      else:
-        connection.privmsg(event.target(), "Failed to queue items.")
+    callback = getattr(self.cb, "msg_%s" % command, None)
+    if callback is not None:
+      # jump to callback
+      callback(self, event, event.target(), ext)
 
   def on_ctcp(self, connection, event):
     args = event.arguments()
     ctcp_type = args[0]
     nick = event.source().split("!")[0]
 
-    # SS_ANNOUNCE (announce presence)
-    if ctcp_type == "SS_ANNOUNCE":
-      tracker.add(nick)  # add newcomer
-      logging.debug("sending SS_ACK to %s" % nick)
-      connection.ctcp("SS_ACK", nick, " ".join(args[1:]))
-      logging.debug("current peers: %s" % ", ".join(tracker.peers()))
-
-    # SS_ACK (acknowledge presence)
-    elif ctcp_type == "SS_ACK":
-      tracker.add(nick)  # we're the newcomer, adding existing peers
-      logging.debug("received ack from %s" % nick)
-      logging.debug("current peers: %s" % ", ".join(tracker.peers()))
-
-    # SS_STARTELECTION
-    elif ctcp_type == "SS_STARTELECTION":
-      queue_size = svcclient and svcclient.queue_size() or 0
-      if state.force_diff() > 0:
-        # we're in forced state, ignore election
-        logging.debug("election request from %s while in forced state" % nick)
-      else:
-        logging.debug("election request from %s, sending queue size: %d MB" %
-                      (nick, queue_size))
-        connection.ctcp("SS_QUEUESIZE", nick, "%s" % queue_size)
-
-    # SS_QUEUESIZE (during an election)
-    elif ctcp_type == "SS_QUEUESIZE" and election:
-      try:
-        size = int(args[1])
-      except ValueError:
-        size = 0
-      except IndexError:
-        logging.debug("SS_QUEUESIZE from %s received, but no arg?" % nick)
-        return
-
-      logging.debug("%s reported queue size: %d MB" % (nick, size))
-      election.update(nick, size)
-      jobs.add_job(check_election)
-
-    # SS_CONNUPDATE (after an SS_CONNSTAT message)
-    elif ctcp_type == "SS_CONNUPDATE":
-      if " " in args[1]:
-        owner_nick, count = args[1].split(" ")
-      else:
-        count = args[1]
-
-      try:
-        count = int(count)
-      except ValueError:
-        logging.debug("received bogus data for SS_CONNUPDATE from %s: %s" %
-                      (nick, args[2]))
-        return
-      except IndexError:
-        logging.debug("received no data for SS_CONNUPDATE from %s" % nick)
-        logging.debug("args: %s" % str(args))
-        return
-
-      if election:
-        logging.debug("%s reported %d connections" % (nick, count))
-        election.update(nick, count)
-        jobs.add_job(check_election)
-      elif not election and count == 0 and svcclient.queue_size():
-        delay = random.randint(60, 120)
-        jobs.add_job(check_queue, delay=delay)
-        logging.debug("checking queue in %d seconds" % delay)
-
-    # SS_YIELD (give up the service)
-    elif ctcp_type == "SS_YIELD":
-      if not svcclient.is_paused():
-        connection.privmsg(self.channel, "Yield request received. Pausing.")
-        state.unforce()
-        svcclient.pause()
-
-    # SS_CONNSTAT (request for number of connections)
-    elif ctcp_type == "SS_CONNSTAT":
-      self.send_connupdate(nick)
+    callback = getattr(self.cb, "ctcp_%s" % ctcp_type[3:].lower(), None)
+    if callback is not None:
+      # jump to callback
+      callback(self, event, nick, args)
 
 
 def check_connections():
@@ -641,7 +677,8 @@ def main():
   while True:
     try:
       bot = Bot(config.BOT_IRCSERVER, config.BOT_IRCPORT,
-                config.BOT_NICK, config.BOT_CHANNEL)
+                config.BOT_NICK, config.BOT_CHANNEL,
+                BotCallbacks())
     except irclib.ServerConnectionError, x:
       logging.debug("exception: %s" % x)
       time.sleep(60)
