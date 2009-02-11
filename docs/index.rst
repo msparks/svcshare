@@ -5,7 +5,7 @@ Requirements
 ------------
 
 As of version 0.3.0, the "simplejson" Python module is required for Python
-versions <= 2.6. It can be easily installed with::
+versions prior to 2.6. It can be easily installed with::
 
   $ easy_install -U simplejson
 
