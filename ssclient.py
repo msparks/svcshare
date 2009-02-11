@@ -211,7 +211,7 @@ class BotCtcpCallbacks(BotMsgCallbacks):
   def ctcp_yield(self, bot, event, nick, args):
     """Yield request"""
     if not svcclient.is_paused():
-      bot.connection.privmsg(self.channel, "Yield request received. Pausing.")
+      bot.connection.privmsg(bot.channel, "Yield request received. Pausing.")
       svcclient.pause()
       state.unforce()
 
@@ -454,7 +454,7 @@ class Bot(irclib.SimpleIRCClient):
 
     # .version
     if msg == ".version":
-      self.cb.msg_version(self, event)
+      self.cb.msg_version(self, event, event.target(), "")
 
     m = re.search(r"^(%s):\s*(.+?)(?:\s+(.+?))?\s*$" % re.escape(self.nick),
                   msg)

@@ -20,9 +20,10 @@ BOT_CHANNEL = "#usenet"
 
 # Client settings. These settings determine how svcshare interacts with your
 # client.
-#   SERVICE_CLIENT: client you use (supported clients: 'hellanzb', 'proxy')
+#   SERVICE_CLIENT: client you use (supported clients: 'hellanzb', 'sabnzbd', 'proxy')
 #   SERVICE_CLIENT_URL: URL to control the client.
 #     for 'hellanzb', this is the XMLRPC URL (e.g., http://user:pass@host:8760)
+#     for 'sabnzbd', this is the webserver URL (e.g., http://user:pass@host:8080)
 #     for 'proxy', this is not used
 #SERVICE_CLIENT = "proxy"
 SERVICE_CLIENT = "hellanzb"

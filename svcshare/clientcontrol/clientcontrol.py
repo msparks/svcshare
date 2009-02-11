@@ -3,6 +3,7 @@ import re
 import sys
 
 from svcshare.clientcontrol import hellanzbcontrol
+from svcshare.clientcontrol import sabnzbdcontrol
 
 
 class ClientControl(object):
@@ -12,7 +13,7 @@ class ClientControl(object):
 
     Args:
       proxy: ConnectionProxyServer instance
-      client_name: client name (supported: 'hellanzb', None)
+      client_name: client name (supported: 'hellanzb', 'sabnzbd', None)
       client_url: URL to control client
     """
     self.client_name = client_name
@@ -21,6 +22,8 @@ class ClientControl(object):
 
     if client_name == "hellanzb":
       self.client = hellanzbcontrol.HellanzbControl(client_url)
+    elif client_name == "sabnzbd":
+      self.client = sabnzbdcontrol.SabnzbdControl(client_url)
     else:
       self.client = None
 
