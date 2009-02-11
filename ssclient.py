@@ -448,8 +448,8 @@ class Bot(irclib.SimpleIRCClient):
 
     msg = event.arguments()[0]
 
-    # .usenet
-    if msg == ".usenet" and proxy.num_active() > 0:
+    # .status
+    if msg == ".status" and proxy.num_active() > 0:
       self.cb.msg_eta(self, event, event.target(), "")
 
     # .version
