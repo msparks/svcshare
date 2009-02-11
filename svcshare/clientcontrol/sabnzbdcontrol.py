@@ -2,7 +2,10 @@ import os
 import urllib
 import urlparse
 
-import simplejson as json
+try:
+  import json
+except ImportError:
+  import simplejson as json
 
 from svcshare.clientcontrol import clientcontrolbase
 
