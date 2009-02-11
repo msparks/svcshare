@@ -18,7 +18,7 @@ Installation
 #. Ensure all requirements are met.
 
 #. Following a :command:`git clone`, copy :file:`config.py.dist` to
-   :file:`config.py` and edit :file:`config` with your favorite editor. The
+   :file:`config.py` and edit :file:`config.py` with your favorite editor. The
    items should be self-explanatory.
 
 #. Configure your client to use the tunnel/proxy created by svcshare. This
