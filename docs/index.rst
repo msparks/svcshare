@@ -9,6 +9,9 @@ versions prior to 2.6. It can be easily installed with::
 
   $ easy_install -U simplejson
 
+:command:`easy_install` is part of the *setuptools* package, which is available
+for download for various platforms, including Windows.
+
 Installation
 ------------
 
