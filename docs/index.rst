@@ -12,6 +12,8 @@ easily installed with::
 Installation
 ------------
 
+#. Ensure all requirements are met.
+
 #. Following a :command:`git clone`, copy :file:`config.py.dist` to
    :file:`config.py` and edit :file:`config` with your favorite editor. The
    items should be self-explanatory.
