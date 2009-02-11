@@ -1,6 +1,9 @@
 svcshare
 ========
 
+Svcshare (service share) is a distributed queueing system that controls access
+to a shared resource.
+
 Requirements
 ------------
 
