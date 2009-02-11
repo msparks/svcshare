@@ -82,10 +82,6 @@ class BotMsgCallbacks(object):
       bot.connection.privmsg(target, "Failed to queue items.")
   msg_enq = msg_enqueue
 
-  def msg_eta(self, bot, event, target, ext):
-    bot.announce_status(target)
-  msg_status = msg_eta
-
   def msg_force(self, bot, event, target, ext):
     try:
       min_mb = int(ext)
@@ -130,6 +126,10 @@ class BotMsgCallbacks(object):
       bot.connection.privmsg(target,
                              "Paused proxy. Failed to pause client.")
     state.unforce()
+
+  def msg_status(self, bot, event, target, ext):
+    bot.announce_status(target)
+  msg_eta = msg_status
 
   def msg_version(self, bot, event, target, ext):
     bot.connection.privmsg(target, "svcshare version %s" % version_string())
