@@ -200,9 +200,13 @@ class BotCtcpCallbacks(BotMsgCallbacks):
   def ctcp_startelection(self, bot, event, nick, args):
     """Start an election"""
     queue_size = svcclient and svcclient.queue_size() or 0
-    if state.force_diff() > 0:
+    if state.forced():
       # we're in forced state, ignore election
       logging.debug("election request from %s while in forced state" % nick)
+    elif state.halted():
+      logging.debug("election request from %s while halted, sending 0 MB" %
+                    nick)
+      bot.connection.ctcp("SS_QUEUESIZE", nick, "0")
     else:
       logging.debug("election request from %s, sending queue size: %d MB" %
                     (nick, queue_size))
