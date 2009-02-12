@@ -186,14 +186,14 @@ class BotCtcpCallbacks(BotMsgCallbacks):
       return
 
     try:
-      size = int(args[1])
+      size = float(args[1])
     except ValueError:
       size = 0
     except IndexError:
       logging.debug("SS_QUEUESIZE from %s received, but no arg?" % nick)
       return
 
-    logging.debug("%s reported queue size: %d MB" % (nick, size))
+    logging.debug("%s reported queue size: %f MB" % (nick, size))
     election.update(nick, size)
     jobs.add_job(check_election)
 
@@ -208,9 +208,9 @@ class BotCtcpCallbacks(BotMsgCallbacks):
                     nick)
       bot.connection.ctcp("SS_QUEUESIZE", nick, "0")
     else:
-      logging.debug("election request from %s, sending queue size: %d MB" %
+      logging.debug("election request from %s, sending queue size: %f MB" %
                     (nick, queue_size))
-      bot.connection.ctcp("SS_QUEUESIZE", nick, "%s" % queue_size)
+      bot.connection.ctcp("SS_QUEUESIZE", nick, "%f" % queue_size)
 
   def ctcp_yield(self, bot, event, nick, args):
     """Yield request"""
