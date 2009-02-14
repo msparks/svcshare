@@ -57,7 +57,7 @@ class ThreadingTCPServer(SocketServer.ThreadingMixIn,
 
 class ProxyRequestHandler(SocketServer.StreamRequestHandler):
   def handle(self):
-    logging.info("proxy connection from: %s:%s" % self.client_address)
+    logging.debug("proxy connection from: %s:%s" % self.client_address)
     s = socket.socket()
     try:
       s.connect(self.server.target)
@@ -79,8 +79,7 @@ class ProxyRequestHandler(SocketServer.StreamRequestHandler):
     c2t.join()
     t2c.join()
     s.close()
-    logging.info("closing connection from %s:%s" % self.client_address)
-    logging.info("transferred %s bytes" % conn_stats.bytes)
+    logging.debug("closing connection from %s:%s" % self.client_address)
     self.server.stats.close(conn_stats)
 
 
