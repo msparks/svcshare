@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import socket
@@ -12,8 +13,16 @@ class HellanzbControl(clientcontrolbase.ClientControlBase):
     self._url = xmlrpc_url
     self._server = xmlrpclib.ServerProxy(self._url)
 
+  def _call(self, method_name, *args):
+    try:
+      return getattr(self._server, method_name)(*args)
+    except socket.error:
+      logging.warning("failed to make API call '%s' to Hellanzb. Check URL." %
+                      method_name)
+      raise
+
   def _status(self):
-    resp = self._server.status()
+    resp = self._call("status")
     current_item_size = 0  # MB
     queue_size = 0         # MB
     queue_items = 0
@@ -34,7 +43,7 @@ class HellanzbControl(clientcontrolbase.ClientControlBase):
 
   def pause(self):
     try:
-      resp = self._server.pause()
+      resp = self._call("pause")
     except socket.error:
       return False
     else:
@@ -42,28 +51,34 @@ class HellanzbControl(clientcontrolbase.ClientControlBase):
 
   def resume(self):
     try:
-      resp = getattr(self._server, "continue")()
+      resp = self._call("continue")
     except socket.error:
       return False
     else:
       return resp["is_paused"] == False
 
   def eta(self):
-    return self._eta(self._status())
+    try:
+      return self._eta(self._status())
+    except socket.error:
+      return None
 
   def queue_size(self):
-    return self._queue_size(self._status())
+    try:
+      return self._queue_size(self._status())
+    except socket.error:
+      return 0
 
   def is_paused(self):
     try:
-      resp = self._server.status()
+      resp = self._call("status")
     except socket.error:
       return True
     return resp["is_paused"]
 
   def enqueue(self, id):
     try:
-      resp = self._server.enqueuenewzbin(id)
+      resp = self._call("enqueuenewzbin", id)
     except socket.error:
       return False
     else:

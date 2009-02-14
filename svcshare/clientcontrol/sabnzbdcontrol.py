@@ -1,3 +1,4 @@
+import logging
 import os
 import urllib
 import urlparse
@@ -25,7 +26,9 @@ class SabnzbdControl(clientcontrolbase.ClientControlBase):
     try:
       url_handle = urllib.urlopen(url)
     except IOError:
-      return None
+      logging.warning("failed to make API call '%s' to SABnzbd. Check URL." %
+                      mode)
+      raise
 
     data = url_handle.read()
     try:
@@ -34,10 +37,16 @@ class SabnzbdControl(clientcontrolbase.ClientControlBase):
       return data
 
   def pause(self):
-    return self._api_call("pause").startswith("ok")
+    try:
+      return self._api_call("pause").startswith("ok")
+    except IOError:
+      return False
 
   def resume(self):
-    return self._api_call("resume").startswith("ok")
+    try:
+      return self._api_call("resume").startswith("ok")
+    except IOError:
+      return False
 
   def _status(self):
     status = self._api_call("qstatus", {"output": "json"})
@@ -65,14 +74,26 @@ class SabnzbdControl(clientcontrolbase.ClientControlBase):
     return current_item_size, queue_size, queue_items, speed
 
   def eta(self):
-    return self._eta(self._status())
+    try:
+      return self._eta(self._status())
+    except IOError:
+      return None
 
   def queue_size(self):
-    return self._queue_size(self._status())
+    try:
+      return self._queue_size(self._status())
+    except IOError:
+      return 0
 
   def is_paused(self):
-    status = self._api_call("qstatus", {"output": "json"})
-    return status["paused"]
+    try:
+      status = self._api_call("qstatus", {"output": "json"})
+      return status["paused"]
+    except IOError:
+      return True
 
   def enqueue(self, id):
-    return self._api_call("addid", {"name": id}).startswith("ok")
+    try:
+      return self._api_call("addid", {"name": id}).startswith("ok")
+    except IOError:
+      return False
