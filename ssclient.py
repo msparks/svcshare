@@ -546,10 +546,14 @@ def check_for_queue_transition():
 
 
 def check_queue():
-  if not svcclient.queue_size() or not svcclient.is_paused():
+  queue_size = svcclient.queue_size()
+  if not queue_size or not svcclient.is_paused():
     return
   if state.halted():
     return
+
+  global last_queue_size
+  last_queue_size = queue_size
 
   # we have a queue and we're currently paused. Investigate options.
   if not config.AUTO_RESUME:
@@ -674,7 +678,8 @@ def check_feeds():
 
       feeds.mark_old(entry)
 
-    feeds.save()
+  feeds.save()
+  jobs.add_job(check_queue)
 
 
 def version_string():
