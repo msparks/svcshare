@@ -19,6 +19,7 @@ from svcshare import reporter
 import config
 
 __version__ = "0.3.1"
+_version_string = None
 
 cur_count = 0
 start_bytes_transferred = 0
@@ -133,7 +134,7 @@ class BotMsgCallbacks(object):
   msg_eta = msg_status
 
   def msg_version(self, bot, event, target, ext):
-    bot.connection.privmsg(target, "svcshare version %s" % version_string())
+    bot.connection.privmsg(target, "svcshare version %s" % _version_string)
 
 
 class BotCtcpCallbacks(BotMsgCallbacks):
@@ -712,6 +713,7 @@ def main():
   global state
   global svcclient
   global tracker
+  global _version_string
 
   irclib.DEBUG = 0
 
@@ -748,6 +750,9 @@ def main():
 
   # set up peer tracker (keep track of other bots)
   tracker = peertracker.PeerTracker()
+
+  # populate version string
+  _version_string = version_string()
 
   while True:
     try:
