@@ -62,7 +62,8 @@ class BotMsgCallbacks(object):
       bot.send_halt_error(target)
       return
 
-    start_election()
+    queue_size = svcclient.queue_size()
+    start_election(queue_size)
     bot.connection.privmsg(target, "Election started.")
   msg_resume = msg_election
   msg_continue = msg_election
@@ -195,7 +196,7 @@ class BotCtcpCallbacks(BotMsgCallbacks):
       logging.debug("SS_QUEUESIZE from %s received, but no arg?" % nick)
       return
 
-    logging.debug("%s reported queue size: %f MB" % (nick, size))
+    logging.debug("%s reported queue size: %.2f MB" % (nick, size))
     election.update(nick, size)
     jobs.add_job(check_election)
 
@@ -539,7 +540,7 @@ def check_for_queue_transition():
     logging.debug("noticed queue transition from empty to non-empty")
 
     if config.AUTO_RESUME:
-      start_election(major=False)
+      start_election(queue_size, major=False)
     else:
       logging.debug("skipping election; AUTO_RESUME is disabled")
 
@@ -562,18 +563,19 @@ def check_queue():
 
   # Call a major election if possible.
   if last_major_election + 1800 < time.time():
-    start_election(major=True)
+    start_election(queue_size, major=True)
   # Last election was too recent, start a minor election.
   else:
-    start_election(major=False)
+    start_election(queue_size, major=False)
 
 
-def start_election(major=True):
+def start_election(queue_size, major=True):
   global election
   global last_major_election
 
   if major:
     logging.debug("starting major election")
+    logging.debug("Current queue size: %.2f MB" % queue_size)
     last_major_election = time.time()
   else:
     logging.debug("starting minor election")
