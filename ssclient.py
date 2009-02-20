@@ -178,7 +178,7 @@ class BotCtcpCallbacks(BotMsgCallbacks):
       election.update(nick, count)
       jobs.add_job(check_election)
     elif not election and count == 0 and svcclient.queue_size():
-      delay = random.randint(60, 120)
+      delay = random.randint(180, 300)
       jobs.add_job(check_queue, delay=delay)
       logging.debug("checking queue in %d seconds" % delay)
 
