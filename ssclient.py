@@ -79,7 +79,7 @@ class BotMsgCallbacks(object):
         qd_ids.append(id)
     if qd_ids:
       bot.connection.privmsg(target, "Queued: %s" % ", ".join(qd_ids))
-      jobs.add_job(check_queue)
+      jobs.add_job(check_queue, delay=10)
     else:
       bot.connection.privmsg(target, "Failed to queue items.")
   msg_enq = msg_enqueue
