@@ -63,7 +63,7 @@ class BotMsgCallbacks(object):
       return
 
     queue_size = svcclient.queue_size()
-    start_election(queue_size)
+    start_election(queue_size, major=True)
     bot.connection.privmsg(target, "Election started.")
   msg_resume = msg_election
   msg_continue = msg_election
