@@ -380,7 +380,8 @@ class Bot(irclib.SimpleIRCClient):
       connection.join(self.channel)
 
   def on_disconnect(self, connection, event):
-    time.sleep(30)
+    logging.info("Disconnected from IRC server: %s" % event.arguments()[0])
+    time.sleep(15)
     self.connect(self.server, self.port, self.nick)
 
   def on_join(self, connection, event):
