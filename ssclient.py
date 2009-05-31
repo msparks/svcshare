@@ -18,7 +18,7 @@ from svcshare import reporter
 
 import config
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 _version_string = None
 
 cur_count = 0
@@ -265,7 +265,9 @@ class SvcshareState(object):
     """
     if minutes > 0:
       self._halt_end_time = time.time() + minutes * 60
+      logging.debug("halted for %d minutes" % minutes)
     else:
+      logging.debug("halted")
       self._halt_end_time = 0
 
   def halt_diff(self):
@@ -295,6 +297,7 @@ class SvcshareState(object):
     """Cancel current halt state.
     """
     self._halt_end_time = time.time()
+    logging.debug("unhalted")
 
 
 class Bot(irclib.SimpleIRCClient):
@@ -308,6 +311,7 @@ class Bot(irclib.SimpleIRCClient):
     self.cb = cb
     self._nick_counter = 1
     self._first_time = True
+    self._unhalt_on_connect = True
 
   def announce_status(self, target):
     active = proxy.num_active()
@@ -381,6 +385,13 @@ class Bot(irclib.SimpleIRCClient):
 
   def on_disconnect(self, connection, event):
     logging.info("Disconnected from IRC server: %s" % event.arguments()[0])
+    svcclient.pause()
+    state.unforce()
+    if state.halted():
+      self._unhalt_on_connect = False
+    else:
+      self._unhalt_on_connect = True
+      state.halt(0)
     time.sleep(15)
     self.connect(self.server, self.port, self.nick)
 
@@ -400,7 +411,10 @@ class Bot(irclib.SimpleIRCClient):
         self._first_time = False
 
       logging.debug("Sending SS_ANNOUNCE")
+      tracker.clear()
       connection.ctcp("SS_ANNOUNCE", chan)
+      if self._unhalt_on_connect:
+        jobs.add_job(state.unhalt, delay=8)
 
   def on_part(self, connection, event):
     nick = event.source().split("!")[0]
@@ -745,6 +759,7 @@ def main():
                                           config.SERVICE_CLIENT,
                                           config.SERVICE_CLIENT_URL)
   svcclient.pause()
+  state.halt(0)  # start halted
 
   # set up feedwatcher
   _path = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),
