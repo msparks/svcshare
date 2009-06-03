@@ -216,7 +216,7 @@ class IRC:
             time.sleep(timeout)
 
         for c in self.connections:
-          c._check_last_ping()
+          c._check_last_event()
 
         self.process_timeout()
 
@@ -442,7 +442,7 @@ class ServerConnection(Connection):
             self.socket = None
             raise ServerConnectionError, "Couldn't connect to socket: %s" % x
         self.connected = 1
-        self.last_ping = time.time()
+        self.last_event = time.time()
         if self.irclibobj.fn_to_add_socket:
             self.irclibobj.fn_to_add_socket(self.socket)
 
@@ -509,6 +509,9 @@ class ServerConnection(Connection):
 
         # Save the last, unfinished line.
         self.previous_buffer = lines.pop()
+
+        # Record the time of this event
+        self.last_event = time.time()
 
         for line in lines:
             if DEBUG:
@@ -611,13 +614,13 @@ class ServerConnection(Connection):
             for fn in self.handlers[event.eventtype()]:
                 fn(self, event)
 
-    def _check_last_ping(self, timeout=300):
-        """Disconnect if last ping/pong exchange was too long ago.
+    def _check_last_event(self, timeout=300):
+        """Disconnect if last event was too long ago.
 
         Args:
-          timeout: time to allow between ping/pong events.
+          timeout: time to allow between events.
         """
-        if self.last_ping + timeout < time.time():
+        if self.last_event + timeout < time.time():
           self.disconnect("Ping timeout")
 
     def is_connected(self):
@@ -1380,10 +1383,8 @@ def _parse_modes(mode_string, unary_modes=""):
 
 def _ping_ponger(connection, event):
     """[Internal]"""
-    connection.last_ping = time.time()
     connection.pong(event.target())
-    if DEBUG:
-      print "Ping/pong event at %s" % connection.last_ping
+
 
 # Numeric table mostly stolen from the Perl IRC module (Net::IRC).
 numeric_events = {
