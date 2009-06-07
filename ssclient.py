@@ -231,6 +231,7 @@ class SvcshareState(object):
   def __init__(self):
     self._force_end_bytes = proxy.transferred()
     self._halt_end_time = time.time()
+    self.last_force_state = False
 
   def force(self, allotment=0):
     self._force_end_bytes = proxy.transferred() + allotment * 1024 * 1024
@@ -313,7 +314,7 @@ class Bot(irclib.SimpleIRCClient):
     self._first_time = True
     self._unhalt_on_connect = True
 
-  def announce_status(self, target):
+  def _status_msg(self):
     active = proxy.num_active()
     extra = ["%d conn" % active]
 
@@ -327,7 +328,14 @@ class Bot(irclib.SimpleIRCClient):
       extra.append("halted")
 
     eta_msg = svcclient.eta() or "Queue status unknown"
-    self.connection.privmsg(target, "%s (%s)" % (eta_msg, ", ".join(extra)))
+    return "%s (%s)" % (eta_msg, ", ".join(extra))
+
+  def announce_status(self, target):
+    self.connection.privmsg(target, self._status_msg())
+
+  def announce_force_end(self):
+    msg = "Force has ended. Queue: %s" % self._status_msg()
+    self.connection.privmsg(self.channel, msg)
 
   def connection_change(self, cur_count, elapsed, transferred):
     if cur_count == 0:
@@ -407,6 +415,7 @@ class Bot(irclib.SimpleIRCClient):
         jobs.add_job(check_feeds, delay=config.FEED_POLL_PERIOD, periodic=True)
         jobs.add_job(check_queue, delay=1800, periodic=True)
         jobs.add_job(check_queue, delay=10)
+        jobs.add_job(check_for_force_transition, delay=10, periodic=True)
         jobs.add_job(check_for_queue_transition, delay=60, periodic=True)
         self._first_time = False
 
@@ -537,6 +546,19 @@ def check_connections():
       report = reporter.Report(tx, elapsed)
       report.send(getattr(config, "REPORTER_URL", ""),
                   getattr(config, "REPORTER_KEY", ""))
+
+
+def check_for_force_transition():
+  """See if the force status goes from force to non-force.
+
+  If so, notify IRC.
+  """
+  if state.last_force_state == True and not state.forced():
+    # notify IRC
+    bot.announce_force_end()
+    state.last_force_state = False
+  elif state.forced():
+    state.last_force_state = True
 
 
 def check_for_queue_transition():
