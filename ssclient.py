@@ -182,7 +182,7 @@ class BotCtcpCallbacks(BotMsgCallbacks):
       jobs.add_job(check_election)
     elif not election and count == 0 and svcclient.queue_size():
       delay = random.randint(180, 300)
-      jobs.add_job(check_queue, delay=delay)
+      jobs.add_job(check_queue, delay=delay, name="autoresume_check")
       logging.debug("checking queue in %d seconds" % delay)
 
   def ctcp_queuesize(self, bot, event, nick, args):
@@ -223,6 +223,8 @@ class BotCtcpCallbacks(BotMsgCallbacks):
       bot.connection.privmsg(bot.channel, "Yield request received. Pausing.")
       svcclient.pause()
       state.unforce()
+    if jobs.remove_job("autoresume_check"):
+        logging.debug("removed autoresume job")
 
 
 class BotCallbacks(BotCtcpCallbacks):
