@@ -564,7 +564,8 @@ def check_for_force_transition():
 def check_for_queue_transition():
   """See if the queue goes from empty to non-empty.
 
-  If so, call a minor election.
+  If so, call a minor election. If a force is in effect with an empty queue, the
+  force will be cleared.
   """
   if state.halted():
     return
@@ -580,6 +581,9 @@ def check_for_queue_transition():
       start_election(queue_size, major=False)
     else:
       logging.debug("skipping election; AUTO_RESUME is disabled")
+  elif queue_size == 0 and state.forced():
+    logging.debug("queue is empty with a force in effect. Unforcing.")
+    state.unforce()
 
   last_queue_size = queue_size
 
