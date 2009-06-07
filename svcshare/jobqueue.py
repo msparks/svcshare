@@ -73,11 +73,12 @@ class JobQueue(object):
     Returns:
       True if successful, False if not
     """
+    removed = False
     for idx, job in enumerate(self._queue):
       if job.name == name:
         del self._queue[idx]
-        return True
-    return False
+        removed = True
+    return removed
 
 
 if __name__ == "__main__":
@@ -98,13 +99,19 @@ if __name__ == "__main__":
   assert(q.next_job().func == bar)
   assert(q.has_next_job() == False)
 
-  q.add_job(foo, delay=1, name="foo")
-  q.add_job(bar, delay=2, name="bar")
-  time.sleep(1.1)
+  q.add_job(foo, name="foo")
+  q.add_job(bar, name="bar")
   assert(q.remove_job("foo") == True)
   assert(q.remove_job("foo") == False)
   assert(q.remove_job("bar") == True)
   assert(q.has_next_job() == False)
   assert(q.remove_job("bar") == False)
+
+  q.add_job(foo, name="foo")
+  q.add_job(bar, name="bar")
+  q.add_job(foo, name="foo")
+  q.remove_job("foo")
+  assert(q.next_job().name == "bar")
+  assert(q.has_next_job() == False)
 
   print "All tests passed."
