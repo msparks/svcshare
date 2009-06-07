@@ -87,7 +87,9 @@ class BotMsgCallbacks(object):
 
   def msg_force(self, bot, event, target, ext):
     try:
+      queue_size = svcclient.queue_size()
       min_mb = int(ext)
+      min_mb = min_mb < queue_size and min_mb or queue_size
     except (TypeError, ValueError):
       min_mb = 0
     logging.debug("force for a minimum of %d MB" % min_mb)
