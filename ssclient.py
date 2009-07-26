@@ -450,7 +450,7 @@ class Bot(irclib.SimpleIRCClient):
     logging.debug("KICK %s <- %s" % (kicked_nick, chan))
 
     if chan == self.channel and kicked_nick != self.nick:
-      tracker.remove(nick)
+      tracker.remove(self.nick)
       logging.debug("current peers: %s" % ", ".join(tracker.peers()))
     elif kicked_nick == self.nick:
       logging.debug("Attempting to rejoin %s" % self.channel)
