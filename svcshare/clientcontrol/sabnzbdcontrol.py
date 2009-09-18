@@ -66,12 +66,13 @@ class SabnzbdControl(clientcontrolbase.ClientControlBase):
           queue_size += item["mbleft"]
         else:
           queue_size += 1
+      queue_size -= current_item_size
     else:
       queue_items = 0
 
     speed = status["kbpersec"]
 
-    return current_item_size, queue_size - current_item_size, queue_items, speed
+    return current_item_size, queue_size, queue_items, speed
 
   def eta(self):
     try:
