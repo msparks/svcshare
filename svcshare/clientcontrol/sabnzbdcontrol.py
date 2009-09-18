@@ -71,7 +71,7 @@ class SabnzbdControl(clientcontrolbase.ClientControlBase):
 
     speed = status["kbpersec"]
 
-    return current_item_size, queue_size, queue_items, speed
+    return current_item_size, queue_size - current_item_size, queue_items, speed
 
   def eta(self):
     try:
