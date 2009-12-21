@@ -428,6 +428,7 @@ class ServerConnection(Connection):
         self.localaddress = localaddress
         self.localport = localport
         self.localhost = socket.gethostname()
+        self.last_event = time.time()
         if ipv6:
             self.socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         else:
