@@ -17,30 +17,6 @@ ISOLATION = {'isolated': 'isolated',
              'open': 'open'}
 
 
-class NetworkEvent(object):
-  def __init__(self, type, source, target, arguments):
-    self._type = type
-    self._source = source
-    self._target = target
-    self._arguments = arguments
-
-  def __str__(self):
-    return '<NetworkEvent(%s): %s -> %s %s>' % (self._type, self._source,
-                                                self._target, self._arguments)
-
-  def type(self):
-    return self._type
-
-  def source(self):
-    return self._source
-
-  def target(self):
-    return self._target
-
-  def arguments(self):
-    return self._arguments
-
-
 class Network(object):
   class Notifiee(object):
     def __init__(self):
@@ -55,16 +31,16 @@ class Network(object):
     def onStatus(self, status):
       pass
 
-    def onJoinEvent(self, event):
+    def onJoinEvent(self, name):
       pass
 
-    def onLeaveEvent(self, event):
+    def onLeaveEvent(self, name):
       pass
 
-    def onControlMessage(self, event):
+    def onControlMessage(self, name, target, type, message=None):
       pass
 
-    def onChatMessage(self, event):
+    def onChatMessage(self, name, target, message):
       pass
 
   def __init__(self, server, port, nick, channel, ssl=False):
@@ -107,9 +83,6 @@ class Network(object):
   def nick(self):
     return self._bot.nick()
 
-  def channel(self):
-    return self._bot.channel()
-
   def status(self):
     return self._status
 
@@ -120,27 +93,25 @@ class Network(object):
     self._status = status
     self._doNotification('onStatus', status)
 
-  def joinEventNew(self, event):
-    self._logger.debug(event)
-    self._doNotification('onJoinEvent', event)
+  def joinEventNew(self, name):
+    self._doNotification('onJoinEvent', name)
 
-  def leaveEventNew(self, event):
-    self._logger.debug(event)
-    self._doNotification('onLeaveEvent', event)
+  def leaveEventNew(self, name):
+    self._doNotification('onLeaveEvent', name)
 
-  def controlMessageNew(self, event):
-    self._logger.debug(event)
-    self._doNotification('onControlMessage', event)
+  def controlMessageNew(self, name, target, type, message=None):
+    self._doNotification('onControlMessage', name, target, type, message)
 
-  def chatMessageNew(self, event):
-    self._logger.debug(event)
-    self._doNotification('onChatMessage', event)
+  def chatMessageNew(self, name, target, message):
+    self._doNotification('onChatMessage', name, target, message)
 
   def controlMessageIs(self, target, type, message=None):
-    self._bot.connection.ctcp(type, target, message)
+    if self._status == STATUS['synced']:
+      self._bot.connection.ctcp(type, target, message)
 
   def chatMessageIs(self, target, message):
-    self._bot.connection.privmsg(target, message)
+    if self._status == STATUS['synced']:
+      self._bot.connection.privmsg(target, message)
 
 
 class Bot(irclib.SimpleIRCClient):
@@ -221,44 +192,53 @@ class Bot(irclib.SimpleIRCClient):
     self._reconnect()
 
   def on_join(self, connection, event):
-    nick = event.source().split("!")[0]
-    chan = event.target()
-    self._logger.debug("JOIN %s -> %s" % (nick, chan))
+    nick = event.source().split('!')[0]
+    target = event.target()
+    self._logger.debug("JOIN %s -> %s" % (nick, target))
 
-    if nick == self._curNick and chan == self._channel:
+    if nick == self._curNick and target == self._channel:
       self._network.statusIs(STATUS['synced'])
     else:
-      self._addNetworkEvent('joinEventNew', event)
+      self._addNetworkEvent('joinEventNew', nick)
 
   def on_part(self, connection, event):
-    self._addNetworkEvent('leaveEventNew', event)
+    nick = event.source().split('!')[0]
+    target = event.target()
+    self._addNetworkEvent('leaveEventNew', nick)
 
   def on_quit(self, connection, event):
-    self._addNetworkEvent('leaveEventNew', event)
+    nick = event.source().split('!')[0]
+    self._addNetworkEvent('leaveEventNew', nick)
 
   def on_kick(self, connection, event):
     kickedNick = event.arguments()[0]
+    self._addNetworkEvent('leaveEventNew', kickedNick)
     if kickedNick == self._curNick:
       self._network.statusIs(STATUS['connected'])
-
-    if len(event.arguments()) > 1:
-      kickMsg = event.arguments()[1]
-    else:
-      kickMsg = ''
-    newArgs = [event.source(), kickMsg]
-    self._addNetworkEvent('leaveEventNew',
-                          irclib.Event(event.eventtype(), kickedNick,
-                                       event.target(), newArgs))
-    self._rejoin()
+      self._rejoin()
 
   def on_nick(self, connection, event):
     pass
 
   def on_privmsg(self, connection, event):
-    self._addNetworkEvent('chatMessageNew', event)
+    nick = event.source().split('!')[0]
+    message = event.arguments()[0]
+    target = None
+    self._addNetworkEvent('chatMessageNew', nick, target, message)
 
   def on_pubmsg(self, connection, event):
-    self._addNetworkEvent('chatMessageNew', event)
+    nick = event.source().split('!')[0]
+    message = event.arguments()[0]
+    target = event.target()
+    self._addNetworkEvent('chatMessageNew', nick, target, message)
 
   def on_ctcp(self, connection, event):
-    self._addNetworkEvent('controlMessageNew', event)
+    nick = event.source().split('!')[0]
+    args = event.arguments()
+    type = args[0]
+    if len(args) > 1:
+      message = args[1]
+    else:
+      message = None
+    target = event.target()
+    self._addNetworkEvent('controlMessageNew', nick, target, type, message)

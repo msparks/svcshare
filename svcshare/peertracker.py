@@ -14,30 +14,28 @@ class PeerTracker(network.Network.Notifiee):
   def peerNetwork(self):
     return self._peerNetwork
 
-  def onLeaveEvent(self, event):
-    peerName = event.source().split('!')[0]
-
-    if peerName == self._notifier.nick():
+  def onLeaveEvent(self, name):
+    if name == self._notifier.nick():
       self._logger.debug('we left the control channel, flushing peer network')
       self._peerNetwork.networkEmpty()
       return
 
     try:
-      self._peerNetwork.peerDel(peerName)
+      self._peerNetwork.peerDel(name)
     except exc.NameNotFoundException:
-      self._logger.debug('%s not found in peer network' % peerName)
+      self._logger.debug('%s not found in peer network' % name)
     else:
-      self._logger.debug('%s removed from the peer network' % peerName)
+      self._logger.debug('%s removed from the peer network' % name)
 
-  def onControlMessage(self, event):
-    peer = peers.Peer(event.source().split('!')[0])
-    args = event.arguments()
-    if len(args) == 1 and args[0] == 'SS_ANNOUNCE':
-      self._onAnnounce(peer, args[1:])
+  def onControlMessage(self, name, target, type, message=None):
+    if type == 'SS_ANNOUNCE':
+      self._onAnnounce(name)
+      return
 
-  def _onAnnounce(self, peer, args):
-    self._logger.debug('received announce message from %s' % peer.name())
+  def _onAnnounce(self, name):
+    self._logger.debug('received announce message from %s' % name)
     try:
+      peer = peers.Peer(name)
       self._peerNetwork.peerIs(peer)
     except exc.NameInUseException:
       self._logger.critical('peer announcement came from a peer already in '
