@@ -1,0 +1,4 @@
+*.pyc
+.DS_Store
+feeds.dat
+config.py
