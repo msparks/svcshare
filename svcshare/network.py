@@ -83,6 +83,9 @@ class Network(object):
   def nick(self):
     return self._bot.nick()
 
+  def channel(self):
+    return self._bot.channel()
+
   def status(self):
     return self._status
 
@@ -163,12 +166,10 @@ class Bot(irclib.SimpleIRCClient):
       self._logger.debug(e)
       self._reconnect()
 
-  def _addNetworkEvent(self, methodName, event):
-    networkEvent = NetworkEvent(event.eventtype(), event.source(),
-                                event.target(), event.arguments())
+  def _addNetworkEvent(self, methodName, *args):
     if methodName in dir(self._network):
       method = getattr(self._network, methodName)
-      method(networkEvent)
+      method(*args)
 
   def on_nicknameinuse(self, connection, event):
     # When nick is in use, append a number to the base nick.
@@ -198,8 +199,7 @@ class Bot(irclib.SimpleIRCClient):
 
     if nick == self._curNick and target == self._channel:
       self._network.statusIs(STATUS['synced'])
-    else:
-      self._addNetworkEvent('joinEventNew', nick)
+    self._addNetworkEvent('joinEventNew', nick)
 
   def on_part(self, connection, event):
     nick = event.source().split('!')[0]
