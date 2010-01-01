@@ -4,82 +4,68 @@ import re
 import socket
 import xmlrpclib
 
-from svcshare.clientcontrol import clientcontrolbase
+from svcshare import client
+from svcshare import exc
 
 
-class HellanzbControl(clientcontrolbase.ClientControlBase):
-  """Control for the hellanzb client."""
+class HellanzbControl(object):
+  '''Control for the hellanzb client.'''
   def __init__(self, xmlrpc_url):
     self._url = xmlrpc_url
     self._server = xmlrpclib.ServerProxy(self._url)
+    self._logger = logging.getLogger('HellanzbControl')
 
-  def _call(self, method_name, *args):
+  def _call(self, methodName, *args):
     try:
-      return getattr(self._server, method_name)(*args)
+      return getattr(self._server, methodName)(*args)
     except socket.error:
-      logging.warning("failed to make API call '%s' to Hellanzb. Check URL." %
-                      method_name)
-      raise
+      self._logger.warning('failed to make API call "%s" to Hellanzb. '
+                           'Check URL.' % method_name)
+      raise exc.ResourceException
 
-  def _status(self):
-    resp = self._call("status")
-    current_item_size = 0  # MB
-    queue_size = 0         # MB
-    queue_items = 0
-    speed = 0              # KB/s
+  def pausedIs(self, paused):
+    if paused:
+      self._call('pause')
+    else:
+      self._call('continue')
 
-    current_item_size = resp["queued_mb"]
+  def paused(self):
+    response = self._call('status')
+    try:
+      return response['is_paused']
+    except KeyError:
+      self._logger.warning('is_paused not reported in status information')
+      raise exc.ResourceException
 
-    for item in resp["queued"]:
-      if "total_mb" in item:
-        queue_size += item["total_mb"]
+  def rate(self):
+    _rate = 0
+    try:
+      response = self._call('status')
+      _rate = response['rate']
+    except KeyError:
+      self._logger.warning('rate not reported in status information')
+      raise exc.ResourceException
+    else:
+      return _rate
+
+  def newzbinItemNew(self, id):
+    self._call('enqueuenewzbin', id)
+
+  def queue(self):
+    response = self._call('status')
+    _queue = client.ClientQueue()
+
+    if response['currently_downloading']:
+      currentItemSize = response['queued_mb']
+      currentItemName = response['currently_downloading'][0]['id']
+      _queue.itemIs(client.ClientQueueItem(currentItemName, currentItemSize))
+
+    for item in response['queued']:
+      if 'total_mb' in item:
+        itemSize = item['total_mb']
       else:
-        queue_size += 1  # sometimes items don't list size
+        itemSize = 1024  # sometimes items don't list size
+      itemName = item['id']
+      _queue.itemIs(client.ClientQueueItem(itemName, itemSize))
 
-    queue_items = len(resp["queued"])
-    speed = resp["rate"]
-
-    return current_item_size, queue_size, queue_items, speed
-
-  def pause(self):
-    try:
-      resp = self._call("pause")
-    except socket.error:
-      return False
-    else:
-      return resp["is_paused"] == True
-
-  def resume(self):
-    try:
-      resp = self._call("continue")
-    except socket.error:
-      return False
-    else:
-      return resp["is_paused"] == False
-
-  def eta(self):
-    try:
-      return self._eta(self._status())
-    except socket.error:
-      return None
-
-  def queue_size(self):
-    try:
-      return self._queue_size(self._status())
-    except socket.error:
-      return 0
-
-  def is_paused(self):
-    try:
-      resp = self._call("status")
-    except socket.error:
-      return True
-    return resp["is_paused"]
-
-  def enqueue(self, id):
-    try:
-      resp = self._call("enqueuenewzbin", id)
-    except socket.error:
-      return False
-    else:
-      return True
+    return _queue
