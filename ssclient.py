@@ -788,9 +788,11 @@ def main():
   state = SvcshareState()
 
   # set up access to service client
+  _client_key = getattr(config, "SERVICE_CLIENT_KEY", "")
   svcclient = clientcontrol.ClientControl(proxy,
                                           config.SERVICE_CLIENT,
-                                          config.SERVICE_CLIENT_URL)
+                                          config.SERVICE_CLIENT_URL,
+                                          _client_key)
   svcclient.pause()
   state.halt(0)  # start halted
 

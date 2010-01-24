@@ -8,7 +8,7 @@ from svcshare.clientcontrol import sabnzbdcontrol
 
 class ClientControl(object):
   """Interface to the client using the shared service."""
-  def __init__(self, proxy, client_name, client_url):
+  def __init__(self, proxy, client_name, client_url, client_key):
     """Create a ClientControl object.
 
     Args:
@@ -23,7 +23,7 @@ class ClientControl(object):
     if client_name == "hellanzb":
       self.client = hellanzbcontrol.HellanzbControl(client_url)
     elif client_name == "sabnzbd":
-      self.client = sabnzbdcontrol.SabnzbdControl(client_url)
+      self.client = sabnzbdcontrol.SabnzbdControl(client_url, client_key)
     else:
       self.client = None
 

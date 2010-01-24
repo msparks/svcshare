@@ -13,15 +13,17 @@ from svcshare.clientcontrol import clientcontrolbase
 
 class SabnzbdControl(clientcontrolbase.ClientControlBase):
   """Control for the SABnzbd client."""
-  def __init__(self, url):
+  def __init__(self, url, apikey):
     self._url = url
+    self._apikey = apikey
 
   def _api_call(self, mode, params=None):
     if params is None:
       params = {}
     enc = urllib.urlencode(params)
     url = urlparse.urljoin(self._url,
-                           "/sabnzbd/api?mode=%s&%s" % (mode, enc))
+                           "/sabnzbd/api?mode=%s&apikey=%s&%s" %
+                           (mode, self._apikey, enc))
 
     try:
       url_handle = urllib.urlopen(url)
