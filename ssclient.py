@@ -73,6 +73,9 @@ class BotMsgCallbacks(object):
     if event.source().split("!")[0] != config.NICK:
       return
 
+    if not ext:
+      return
+
     ids = ext.split(" ")
     qd_ids = []
     for id in ids:
