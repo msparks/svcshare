@@ -1,10 +1,8 @@
 import logging
-import os
-import re
 import socket
 import xmlrpclib
 
-from svcshare import client
+from svcshare import clientqueue
 from svcshare import exc
 
 
@@ -53,12 +51,13 @@ class HellanzbControl(object):
 
   def queue(self):
     response = self._call('status')
-    _queue = client.ClientQueue()
+    _queue = clientqueue.ClientQueue()
 
     if response['currently_downloading']:
       currentItemSize = response['queued_mb']
       currentItemName = response['currently_downloading'][0]['id']
-      _queue.itemIs(client.ClientQueueItem(currentItemName, currentItemSize))
+      _queue.itemIs(clientqueue.ClientQueueItem(currentItemName,
+                                                currentItemSize))
 
     for item in response['queued']:
       if 'total_mb' in item:
@@ -66,6 +65,6 @@ class HellanzbControl(object):
       else:
         itemSize = 1024  # sometimes items don't list size
       itemName = item['id']
-      _queue.itemIs(client.ClientQueueItem(itemName, itemSize))
+      _queue.itemIs(clientqueue.ClientQueueItem(itemName, itemSize))
 
     return _queue

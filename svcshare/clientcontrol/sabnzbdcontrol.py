@@ -1,5 +1,4 @@
 import logging
-import os
 import urllib
 import urlparse
 
@@ -8,93 +7,78 @@ try:
 except ImportError:
   import simplejson as json
 
-from svcshare.clientcontrol import clientcontrolbase
+from svcshare import clientqueue
+from svcshare import exc
 
 
-class SabnzbdControl(clientcontrolbase.ClientControlBase):
-  """Control for the SABnzbd client."""
-  def __init__(self, url):
+class SabnzbdControl(object):
+  '''Control for the SABnzbd client.'''
+  def __init__(self, url, apikey):
     self._url = url
+    self._apikey = apikey
+    self._logger = logging.getLogger('SabnzbdControl')
 
-  def _api_call(self, mode, params=None):
+  def _call(self, mode, params=None):
     if params is None:
       params = {}
     enc = urllib.urlencode(params)
     url = urlparse.urljoin(self._url,
-                           "/sabnzbd/api?mode=%s&%s" % (mode, enc))
+                           '/sabnzbd/api?mode=%s&apikey=%s&%s' %
+                           (mode, self._apikey, enc))
 
     try:
-      url_handle = urllib.urlopen(url)
+      urlHandle = urllib.urlopen(url)
     except IOError:
-      logging.warning("failed to make API call '%s' to SABnzbd. Check URL." %
-                      mode)
-      raise
+      self._logger.warning('failed to make API call "%s" to SABnzbd. '
+                           'Check URL.' % mode)
+      raise exc.ResourceException
 
-    data = url_handle.read()
+    data = urlHandle.read()
     try:
       return json.loads(data)
     except ValueError:
-      return data
+      self._logger.warning('failed to parse JSON response')
+      raise exc.ResourceException
+    return data
 
-  def pause(self):
-    try:
-      return self._api_call("pause").startswith("ok")
-    except IOError:
-      return False
-
-  def resume(self):
-    try:
-      return self._api_call("resume").startswith("ok")
-    except IOError:
-      return False
-
-  def _status(self):
-    status = self._api_call("qstatus", {"output": "json"})
-    current_item_size = 0  # MB
-    queue_size = 0         # MB
-    queue_items = 0
-    speed = 0              # KB/s
-
-    if status["jobs"]:
-      current_item_size = status["jobs"][0]["mbleft"]
-
-    if len(status["jobs"]) > 1:
-      queue_items = len(status["jobs"]) - 1
-
-      for item in status["jobs"]:
-        if "mbleft" in item:
-          queue_size += item["mbleft"]
-        else:
-          queue_size += 1
-      queue_size -= current_item_size
+  def pausedIs(self, paused):
+    if paused:
+      self._call('pause')
     else:
-      queue_items = 0
+      self._call('resume')
 
-    speed = status["kbpersec"]
-
-    return current_item_size, queue_size, queue_items, speed
-
-  def eta(self):
+  def paused(self):
+    response = self._call('qstatus', {'output': 'json'})
     try:
-      return self._eta(self._status())
-    except IOError:
-      return None
+      return response['paused']
+    except KeyError:
+      self._logger.warning('paused not reported in status information')
+      raise exc.ResourceException
 
-  def queue_size(self):
+  def rate(self):
+    _rate = 0
+    response = self._call('qstatus', {'output': 'json'})
     try:
-      return self._queue_size(self._status())
-    except IOError:
-      return 0
+      _rate = response['kbpersec']
+    except KeyError:
+      self._logger.warning('kbpersec not reported in status information')
+      raise exc.ResourceException
+    else:
+      return _rate
 
-  def is_paused(self):
-    try:
-      status = self._api_call("qstatus", {"output": "json"})
-      return status["paused"]
-    except IOError:
-      return True
+  def newzbinItemNew(self, id):
+    self._call('addid', {'name': id})
 
-  def enqueue(self, id):
-    try:
-      return self._api_call("addid", {"name": id}).startswith("ok")
-    except IOError:
-      return False
+  def queue(self):
+    response = self._call('qstatus', {'output': 'json'})
+    _queue = clientqueue.ClientQueue()
+
+    for item in response['jobs']:
+      if 'mbleft' in item:
+        itemSize = item['mbleft']
+      else:
+        itemSize = 1024
+      itemName = item['msgid']
+      _queue.itemIs(clientqueue.ClientQueueItem(itemName, itemSize))
+
+    return _queue
