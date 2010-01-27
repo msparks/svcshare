@@ -36,7 +36,10 @@ class ClientMonitor(object):
 
   def start(self):
     while True:
-      self._checkQueue()
+      try:
+        self._checkQueue()
+      except exc.ResourceException:
+        self._logger.critical('caught ResourceException. Exiting.')
       time.sleep(10)
 
 
