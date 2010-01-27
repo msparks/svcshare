@@ -34,6 +34,10 @@ class ClientMonitor(object):
     if curQueue != oldQueue:
       self._client.queueIs(curQueue)
 
+  def control(self):
+    '''Get the client control object'''
+    return self._control
+
   def start(self):
     while True:
       try:
@@ -64,3 +68,6 @@ class Client(object):
   def queueIs(self, queue):
     self._logger.debug('queue now has %d items' % queue.items())
     self._queue = queue
+
+  def control(self):
+    return self._monitor.control()
