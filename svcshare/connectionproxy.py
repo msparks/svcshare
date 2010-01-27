@@ -3,22 +3,22 @@ import socket
 import SocketServer
 import threading
 
-import connectionstats
+from svcshare import connectionstats
 
 BUFFER_SIZE = 1048576
 
 
 class SocketForwarder(threading.Thread):
-  """Forward data between Socket objects."""
+  '''Forward data between Socket objects.'''
   def __init__(self, source, target, stats=None, continue_event=None):
-    """Create a forwarder.
+    '''Create a forwarder.
 
     Args:
       source: source Socket object
       target: target Socket object
       stats: connectionstats.Connection object
       continue_event: Event object to pause/continue transfer
-    """
+    '''
     threading.Thread.__init__(self)
     self.source = source
     self.target = target
@@ -57,12 +57,12 @@ class ThreadingTCPServer(SocketServer.ThreadingMixIn,
 
 class ProxyRequestHandler(SocketServer.StreamRequestHandler):
   def handle(self):
-    logging.debug("proxy connection from: %s:%s" % self.client_address)
+    logging.debug('proxy connection from: %s:%s' % self.client_address)
     s = socket.socket()
     try:
       s.connect(self.server.target)
     except:
-      logging.warning("failed to connect to proxy target: %s:%s" %
+      logging.warning('failed to connect to proxy target: %s:%s' %
                       self.server.target)
       return
     conn_stats = self.server.stats.register(self.request.getpeername(),
@@ -79,18 +79,18 @@ class ProxyRequestHandler(SocketServer.StreamRequestHandler):
     c2t.join()
     t2c.join()
     s.close()
-    logging.debug("closing connection from %s:%s" % self.client_address)
+    logging.debug('closing connection from %s:%s' % self.client_address)
     self.server.stats.close(conn_stats)
 
 
 class ConnectionProxyServer(object):
   def __init__(self, address, target):
-    """Create a connection proxy.
+    '''Create a connection proxy.
 
     Args:
       address: (host, port) tuple for the local server
       target: (host, port) tuple for the target server
-    """
+    '''
     self._server = ThreadingTCPServer(address, ProxyRequestHandler)
     self._server.stats = connectionstats.ConnectionStats()
     self._server.target = target
@@ -110,48 +110,46 @@ class ConnectionProxyServer(object):
         client.close()
 
   def start(self):
-    """Start the proxy.
-    """
-    logging.debug("starting threading connection proxy server")
+    '''Start the proxy.'''
+    logging.debug('starting threading connection proxy server')
     self._thread = threading.Thread(target=self._server_thread)
     self._thread.setDaemon(True)
     self._thread.start()
 
   def pause(self):
-    """Pause the proxy.
+    '''Pause the proxy.
 
     This will cause all current connections to close and all future connections
     will be refused until the proxy resumes.
-    """
-    logging.debug("pausing proxy")
+    '''
+    logging.debug('pausing proxy')
     self._server.continue_event.clear()
 
   def resume(self):
-    """Resume the proxy after being paused.
-    """
-    logging.debug("resuming proxy")
+    '''Resume the proxy after being paused.'''
+    logging.debug('resuming proxy')
     self._server.continue_event.set()
 
   def is_paused(self):
-    """Return True if the proxy is paused.
+    '''Return True if the proxy is paused.
 
     Returns:
       True is the proxy is paused.
-    """
+    '''
     return not self._server.continue_event.isSet()
 
   def num_active(self):
-    """Get the number of active connections through the proxy.
+    '''Get the number of active connections through the proxy.
 
     Returns:
       integer
-    """
+    '''
     return len(self._server.stats.active_connections())
 
   def transferred(self):
-    """Total number of bytes transferred through the proxy.
+    '''Total number of bytes transferred through the proxy.
 
     Returns:
       integer
-    """
+    '''
     return self._server.stats.total_transferred()
