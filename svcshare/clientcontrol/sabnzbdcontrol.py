@@ -35,12 +35,14 @@ class SabnzbdControl(object):
       raise exc.ResourceException
 
     data = urlHandle.read()
+    return data
+
+  def _parseJSON(self, data):
     try:
       return json.loads(data)
     except ValueError:
       self._logger.warning('failed to parse JSON response: %s' % data)
       raise exc.ResourceException
-    return data
 
   def pausedIs(self, paused):
     if paused:
@@ -58,7 +60,7 @@ class SabnzbdControl(object):
 
   def rate(self):
     _rate = 0
-    response = self._call('qstatus')
+    response = self._parseJSON(self._call('qstatus'))
     try:
       _rate = response['kbpersec']
     except KeyError:
@@ -71,7 +73,7 @@ class SabnzbdControl(object):
     self._call('addid', {'name': id})
 
   def queue(self):
-    response = self._call('qstatus')
+    response = self._parseJSON(self._call('qstatus'))
     _queue = clientqueue.ClientQueue()
 
     for item in response['jobs']:
