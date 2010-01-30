@@ -1,4 +1,5 @@
 import logging
+import threading
 from svcshare import connection
 from svcshare import exc
 
@@ -9,6 +10,7 @@ class ConnectionStats(object):
     self._conns = {}
     self._bytesTransferred = 0
     self._count = 0
+    self._lock = threading.RLock()
 
   def connectionNew(self, source, target):
     '''Register a new active connection.
@@ -22,14 +24,20 @@ class ConnectionStats(object):
     Returns:
       Connection object for new connection
     '''
+    self._lock.acquire()
     if (source, target) in self._conns:
-      return self._conns[(source, target)]
+      c = self._conns[(source, target)]
+      self._lock.release()
+      return c
     elif (target, source) in self._conns:
-      return self._conns[(target, source)]
+      c = self._conns[(target, source)]
+      self._lock.release()
+      return c
     else:
       conn = connection.Connection(source, target)
       self._conns[(source, target)] = conn
       self._count += 1
+      self._lock.release()
       return conn
 
   def connectionDel(self, conn):
@@ -42,11 +50,14 @@ class ConnectionStats(object):
       deleted Connection or None if not found
     '''
     key = (conn.source(), conn.target())
+    conn = None
+    self._lock.acquire()
     if key in self._conns:
+      conn = self._conns[key]
       self._bytesTransferred += conn.bytes()
       del self._conns[key]
-      return conn
-    return None
+    self._lock.release()
+    return conn
 
   def activeConnections(self):
     '''Get number of active connections.
@@ -71,6 +82,8 @@ class ConnectionStats(object):
       integer
     '''
     bytes = self._bytesTransferred
+    self._lock.acquire()
     for conn in self._conns:
       bytes += self._conns[conn].bytes()
+    self._lock.release()
     return bytes
