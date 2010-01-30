@@ -1,4 +1,5 @@
 import logging
+import threading
 from svcshare import exc
 
 
@@ -9,6 +10,7 @@ class Connection(object):
     self._bytes = 0
     self._source = sourceAddr
     self._target = targetAddr
+    self._lock = threading.RLock()
     self._logger.debug('registered connection for %s to %s' %
                        (str(self._source), str(self._target)))
 
@@ -24,7 +26,9 @@ class Connection(object):
     '''
     if delta < 0:
       raise exc.RangeException('delta must be non-negative')
+    self._lock.acquire()
     self._bytes += delta
+    self._lock.release()
 
   def source(self):
     '''Get source address of this connection.'''
