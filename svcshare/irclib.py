@@ -65,6 +65,7 @@ import bisect
 import re
 import select
 import socket
+import ssl as _ssl
 import string
 import sys
 import time
@@ -437,7 +438,7 @@ class ServerConnection(Connection):
             self.socket.bind((self.localaddress, self.localport))
             self.socket.connect((self.server, self.port))
             if ssl:
-                self.ssl = socket.ssl(self.socket)
+                self.ssl = _ssl.wrap_socket(self.socket)
         except socket.error, x:
             self.socket.close()
             self.socket = None
