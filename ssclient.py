@@ -309,13 +309,13 @@ class SvcshareState(object):
 
 
 class Bot(irclib.SimpleIRCClient):
-  def __init__(self, server, port, nick, channel, cb):
+  def __init__(self, server, port, nick, channel, cb, ssl=False):
     irclib.SimpleIRCClient.__init__(self)
     self.server = server
     self.port = port
     self.channel = channel
     self.nick = nick
-    self.connect(server, port, nick)
+    self.connect(server, port, nick, ssl=ssl)
     self.cb = cb
     self._nick_counter = 1
     self._first_time = True
@@ -809,9 +809,10 @@ def main():
 
   while True:
     try:
+      use_ssl = getattr(config, 'BOT_SSL', False)
       bot = Bot(config.BOT_IRCSERVER, config.BOT_IRCPORT,
                 config.BOT_NICK, config.BOT_CHANNEL,
-                BotCallbacks())
+                BotCallbacks(), ssl=use_ssl)
     except irclib.ServerConnectionError, x:
       logging.debug("exception: %s" % x)
       time.sleep(60)
