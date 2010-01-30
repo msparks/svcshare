@@ -13,7 +13,7 @@ class ConnectionProxy(object):
   def __init__(self, address, target):
     '''Create a connection proxy.
 
-    The proxy server will start paused.
+    The proxy server will be stopped after creation.
 
     Args:
       address: (host, port) tuple for the local server

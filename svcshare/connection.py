@@ -35,5 +35,5 @@ class Connection(object):
     return self._source
 
   def target(self):
-    '''Get target of this connection.'''
+    '''Get target address of this connection.'''
     return self._target
