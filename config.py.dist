@@ -16,7 +16,8 @@ NICK = "yournick"
 BOT_IRCSERVER = "irc.myircnet"
 BOT_IRCPORT = 6667
 BOT_NICK = "ss|yournick"
-BOT_CHANNEL = "#usenet"
+BOT_CHANNEL = "#svcshare"
+BOT_USE_SSL = False
 
 # Client settings. These settings determine how svcshare interacts with your
 # client.
