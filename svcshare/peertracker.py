@@ -24,13 +24,8 @@ class PeerTracker(network.Network.Notifiee):
       self._logger.debug('left the control channel, flushing peer network')
       self._peerNetwork.networkEmpty()
       return
-
-    try:
-      self._peerNetwork.peerDel(name)
-    except exc.NameNotFoundException:
-      self._logger.debug('%s not found in peer network' % name)
-    else:
-      self._logger.debug('%s removed from the peer network' % name)
+    self._peerNetwork.peerDel(name)
+    self._logger.debug('%s removed from the peer network' % name)
 
   def onControlMessage(self, name, target, type, message=None):
     if type == 'SS_ANNOUNCE':
