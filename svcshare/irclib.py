@@ -492,6 +492,8 @@ class ServerConnection(Connection):
 
     def process_data(self):
         """[Internal]"""
+        if not self.is_connected():
+            return
 
         try:
             if self.ssl:
@@ -622,7 +624,7 @@ class ServerConnection(Connection):
         Args:
           timeout: time to allow between events.
         """
-        if self.last_event + timeout < time.time():
+        if self.is_connected() and self.last_event + timeout < time.time():
           self.disconnect("Ping timeout")
 
     def is_connected(self):
