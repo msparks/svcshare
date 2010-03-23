@@ -19,6 +19,7 @@ class Test_Peers:
     assert_equal(self.network.peers(), 2)
     assert_equal(self.network.peer("Bob"), peer1)
     assert_equal(self.network.peer("Alice"), peer2)
+    assert_equal(sorted(self.network.peerList()), [peer1, peer2])
 
   def test_removeAllPeers(self):
     peer = peers.Peer("Bob")

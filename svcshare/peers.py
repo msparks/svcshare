@@ -37,6 +37,9 @@ class PeerNetwork(object):
   def peers(self):
     return len(self._peers.keys())
 
+  def peerList(self):
+    return self._peers.values()
+
   def peer(self, name):
     try:
       return self._peers[name]
