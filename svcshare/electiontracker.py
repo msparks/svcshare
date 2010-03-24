@@ -1,66 +1,145 @@
+import logging
+import threading
 import time
 
+from svcshare import exc
+from svcshare import network
+from svcshare import peers
 
-class Election(object):
-  def __init__(self, bot, major):
-    """Create Election instance.
+
+STATUS = {'running': 'running',
+          'stopped': 'stopped'}
+
+
+class ElectionTracker(network.Network.Notifiee):
+  class Notifiee(object):
+    def __init__(self):
+      self._notifier = None
+
+    def notifierIs(self, notifier):
+      if self._notifier is not None:
+        notifier._notifiees.remove(self)
+      self._notifier = notifier
+      notifier._notifiees.append(self)
+
+    def onStatus(self, status):
+      pass
+
+  def __init__(self, pt):
+    '''Constructor.
 
     Args:
-      bot: Bot instance
-      major: (boolean) True if major election, False if minor
-    """
-    self._bot = bot
+      pt: PeerTracker instance
+    '''
+    network.Network.Notifiee.__init__(self)
+    self._notifiees = []
+    self._logger = logging.getLogger('ElectionTracker')
+    self._status = STATUS['stopped']
+    self._startTime = 0
+    self._pt = pt
+    self._queueSize = 0
+    self._duration = 10
     self._peers = {}
-    self._starttime = time.time()
-    self._major = major
+    self._thread = threading.Thread(target=self._thread)
+    self._thread.daemon = True
+    self._thread.start()
 
-  def start(self):
-    """Start the election.
-    """
-    if self._major:
-      self._bot.send_startelection()
-    else:
-      self._bot.send_connstat()
+  def _doNotification(self, methodName, *args):
+    for notifiee in self._notifiees:
+      try:
+        method = getattr(notifiee, methodName)
+      except AttributeError:
+        return
+      else:
+        method(*args)
 
-  def update(self, peername, count):
-    """Update the election status with a new result from a peer.
+  def _thread(self):
+    while True:
+      epoch = time.time()
+      if (self._status == STATUS['running'] and
+          self._startTime + self._duration < epoch):
+        self._status = STATUS['stopped']
+        self._electionEnded()
+      time.sleep(1)
+
+  def duration(self):
+    '''Get the maximum duration of an election, in seconds.
+
+    Returns:
+      seconds
+    '''
+    return self._duration
+
+  def durationIs(self, seconds):
+    '''Set the maximum duration of an election.
 
     Args:
-      peername: peer name
-      count: argument from peer (could be queue size or # of connections)
-    """
-    self._peers[peername] = count
+      seconds: maximum duration
+    '''
+    self._duration = seconds
 
-  def peers(self):
-    """Get list of peers who have voted.
+  def queueSizeIs(self, qs):
+    '''Set the queue size to report to peers running elections.
 
-    Returns:
-      sorted list
-    """
-    lst = self._peers.keys()
-    lst.sort()
-    return lst
+    Args:
+      qs: value to report
+    '''
+    self._queueSize = qs
 
-  def results(self):
-    """Get election results.
+  def status(self):
+    return self._status
 
-    Returns:
-      dict of peername => count key/value pairs
-    """
+  def statusIs(self, status):
+    if self._status == status:
+      return
+    if status not in STATUS:
+      raise exc.RangeException
+
+    if status == STATUS['running']:
+      self._startTime = time.time()
+      self._electionStarted()
+    self._status = status
+    self._doNotification('onStatus', status)
+
+  def peerResponses(self):
     return self._peers
 
-  def start_time(self):
-    """Get epoch of start time.
+  def onControlMessage(self, name, target, type, message=None):
+    if type == 'SS_STARTELECTION':
+      self._replyToElection(name, message)
+    elif type == 'SS_QUEUESIZE':
+      self._handleElectionReply(name, message)
 
-    Returns:
-      epoch
-    """
-    return self._starttime
+  def _replyToElection(self, name, message):
+    if self._notifier:
+      self._notifier.controlMessageIs(name, str(self._queueSize))
 
-  def is_major(self):
-    """Is the election a major election?
+  def _handleElectionReply(self, name, message):
+    try:
+      size = float(message)
+    except (ValueError, TypeError):
+      size = 0
+    if name in self._peers:
+      self._peers[name] = size
 
-    Returns:
-      True if election is major, False if minor
-    """
-    return self._major
+  def _electionStarted(self):
+    # Network object (the notifier) is set after ElectionTracker instantiation
+    if self._notifier is not None:
+      self._notifier.controlMessageIs(self._notifier.channel(),
+                                      'SS_STARTELECTION')
+      self._startTime = time.time()
+
+      self._peers = {}
+      peerList = self._pt.peerNetwork().peerList()
+      for peer in peerList:
+        self._peers[peer.name()] = -1
+      self._logger.debug('Election started with %d peers' % len(self._peers))
+
+  def _electionEnded(self):
+    self._logger.debug('Election ended')
+    for peerName in self._peers:
+      size = self._peers[peerName]
+      if size > -1:
+        self._logger.debug('Peer %s reported size %.3f' % (peerName, size))
+      else:
+        self._logger.debug('No valid size from %s' % peerName)
