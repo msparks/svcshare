@@ -40,7 +40,7 @@ class ElectionTracker(network.Network.Notifiee):
     self._queueSize = 0
     self._duration = 10
     self._peers = {}
-    self._thread = threading.Thread(target=self._thread)
+    self._thread = threading.Thread(target=self._threadFunc)
     self._thread.daemon = True
     self._thread.start()
 
@@ -53,7 +53,7 @@ class ElectionTracker(network.Network.Notifiee):
       else:
         method(*args)
 
-  def _thread(self):
+  def _threadFunc(self):
     while True:
       epoch = time.time()
       if (self._status == STATUS['running'] and
