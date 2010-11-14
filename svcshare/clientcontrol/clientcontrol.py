@@ -2,27 +2,24 @@ import os
 import re
 import sys
 
-from svcshare.clientcontrol import hellanzbcontrol
 from svcshare.clientcontrol import sabnzbdcontrol
 
 
 class ClientControl(object):
-  """Interface to the client using the shared service."""
+  '''Interface to the client using the shared service.'''
   def __init__(self, proxy, client_name, client_url):
-    """Create a ClientControl object.
+    '''Create a ClientControl object.
 
     Args:
       proxy: ConnectionProxyServer instance
-      client_name: client name (supported: 'hellanzb', 'sabnzbd', None)
+      client_name: client name (supported: 'sabnzbd', None)
       client_url: URL to control client
-    """
+    '''
     self.client_name = client_name
     self.client_url = client_url
     self.proxy = proxy
 
-    if client_name == "hellanzb":
-      self.client = hellanzbcontrol.HellanzbControl(client_url)
-    elif client_name == "sabnzbd":
+    if client_name == 'sabnzbd':
       self.client = sabnzbdcontrol.SabnzbdControl(client_url)
     else:
       self.client = None
@@ -41,7 +38,7 @@ class ClientControl(object):
     if self.client:
       return self.client.eta()
     else:
-      return ""
+      return ''
 
   def queue_size(self):
     if self.client:
