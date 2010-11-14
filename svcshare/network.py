@@ -54,11 +54,8 @@ class Network(object):
 
   def _doNotification(self, methodName, *args):
     for notifiee in self._notifiees:
-      try:
-        method = getattr(notifiee, methodName)
-      except AttributeError:
-        return
-      else:
+      method = getattr(notifiee, methodName, None)
+      if method is not None:
         method(*args)
 
   def isolation(self):
