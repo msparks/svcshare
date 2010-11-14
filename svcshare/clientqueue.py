@@ -48,6 +48,9 @@ class ClientQueue(object):
   def items(self):
     return len(self._items)
 
+  def itemList(self):
+    return self._items
+
   def item(self, index):
     try:
       return self._items[index]
