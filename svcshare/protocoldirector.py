@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 
+from svcshare import clientqueue
 from svcshare import exc
 from svcshare import msgtypes
 from svcshare import network
@@ -56,8 +57,11 @@ class ProtocolDirector(network.Network.Notifiee):
 
   def _broadcaster(self):
     time.sleep(5)
+    oldQueue = self._client.queue()
     while True:
-      self._sendQueueStatus()
+      if self._client.queue() != oldQueue:
+        self._sendQueueStatus()
+        oldQueue = self._client.queue()
       time.sleep(10)
 
   def _doNotification(self, methodName, *args):
