@@ -40,7 +40,8 @@ class ClientMonitor(object):
       try:
         self._checkQueue()
       except exc.ResourceException:
-        self._logger.critical('caught ResourceException. Exiting.')
+        emptyQueue = clientqueue.ClientQueue()
+        self._client.queueIs(emptyQueue)
       time.sleep(10)
 
 
@@ -63,7 +64,6 @@ class Client(object):
     return self._queue
 
   def queueIs(self, queue):
-    self._logger.debug('queue now has %d items' % queue.items())
     self._queue = queue
 
   def control(self):
