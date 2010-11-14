@@ -13,7 +13,7 @@ class ClientQueueItem(object):
     return not self.__eq__(other)
 
   def __str__(self):
-    return '(%s, %s)' % (self._name, self._size)
+    return '(%s, %d)' % (self._name, self._size)
 
   def name(self):
     return self._name
@@ -56,3 +56,17 @@ class ClientQueue(object):
       return self._items[index]
     except IndexError:
       return None
+
+  def string(self):
+    items = ['%s:%d' % (x.name(), x.size()) for x in self._items]
+    return ' '.join(items)
+
+  def stringIs(self, string):
+    self._items = []
+    tokens = string.split(' ')
+    for token in tokens:
+      if token.count(':') != 1:
+        continue
+      name, size = token.split(':')
+      size = int(size)
+      self.itemIs(ClientQueueItem(name, size))
