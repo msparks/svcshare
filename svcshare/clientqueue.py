@@ -12,6 +12,9 @@ class ClientQueueItem(object):
   def __ne__(self, other):
     return not self.__eq__(other)
 
+  def __str__(self):
+    return '(%s, %s)' % (self._name, self._size)
+
   def name(self):
     return self._name
 
@@ -34,6 +37,10 @@ class ClientQueue(object):
 
   def __ne__(self, other):
     return not self.__eq__(other)
+
+  def __str__(self):
+    item_list_str = ', '.join([str(x) for x in self._items])
+    return '[%s]' % item_list_str
 
   def itemIs(self, item):
     self._items.append(item)

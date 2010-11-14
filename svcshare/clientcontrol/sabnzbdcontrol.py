@@ -92,7 +92,7 @@ class SabnzbdControl(object):
         itemSize = item['mbleft']
       else:
         itemSize = 1024
-      itemName = item['msgid']
+      itemName = item['id']
       _queue.itemIs(clientqueue.ClientQueueItem(itemName, itemSize))
 
     return _queue
