@@ -46,14 +46,17 @@ class ProtocolDirector(network.Network.Notifiee):
       self._broadcasterThread.daemon = True
       self._broadcasterThread.start()
 
+  def _sendQueueStatus(self):
+    msg = '%d %s' % (self._client.queue().items(), self._queueString())
+    self._sendControlMessage(msgtypes.QUEUESTATUS, msg)
+
   def _sendControlMessage(self, type, message=None):
     self._net.controlMessageIs(self.VERSION, type, message)
 
   def _broadcaster(self):
     time.sleep(5)
     while True:
-      msg = '%d %s' % (self._client.queue().items(), self._queueString())
-      self._sendControlMessage(msgtypes.QUEUESTATUS, msg)
+      self._sendQueueStatus()
       time.sleep(10)
 
   def _queueString(self):
@@ -72,11 +75,7 @@ class ProtocolDirector(network.Network.Notifiee):
     return self._net
 
   def onJoinEvent(self, name):
-    if name == self._notifier.nick():
-      #self._logger.debug('joined the control channel, sending announcement')
-      #self._notifier.controlMessageIs(self._notifier.channel(), 'SS_ANNOUNCE')
-      # TODO(ms): send a QUEUESTATUS here
-      pass
+    self._sendQueueStatus()
 
   def onLeaveEvent(self, name):
     self._doNotification('onLeaveEvent', name)
