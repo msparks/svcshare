@@ -1,54 +1,37 @@
-import os
-import re
-import sys
+import logging
 
+from svcshare import exc
 from svcshare.clientcontrol import sabnzbdcontrol
 
 
 class ClientControl(object):
   '''Interface to the client using the shared service.'''
-  def __init__(self, proxy, client_name, client_url):
+  def __init__(self, proxy, client_name, client_url, client_key):
     '''Create a ClientControl object.
 
     Args:
       proxy: ConnectionProxyServer instance
-      client_name: client name (supported: 'sabnzbd', None)
+      client_name: client name (supported: 'sabnzbd')
       client_url: URL to control client
     '''
-    self.client_name = client_name
-    self.client_url = client_url
-    self.proxy = proxy
+    self._proxy = proxy
+    self._logger = logging.getLogger('ClientControl')
 
     if client_name == 'sabnzbd':
-      self.client = sabnzbdcontrol.SabnzbdControl(client_url)
+      self._client = sabnzbdcontrol.SabnzbdControl(client_url, client_key)
     else:
-      self.client = None
+      self._logger.warning('unsupported client: %s' % client_name)
+      raise exc.RangeException
 
-  def pause(self):
-    self.proxy.pause()
-    if self.client:
-      return self.client.pause()
+  def paused(self):
+    return not self._proxy.running()
 
-  def resume(self):
-    self.proxy.resume()
-    if self.client:
-      return self.client.resume()
+  def pausedIs(self, paused):
+    self._proxy.runningIs(not paused)
+    self._client.pausedIs(paused)
 
-  def eta(self):
-    if self.client:
-      return self.client.eta()
-    else:
-      return ''
+  def queue(self):
+    return self._client.queue() if self._client else None
 
-  def queue_size(self):
-    if self.client:
-      return self.client.queue_size()
-    else:
-      return 0
-
-  def is_paused(self):
-    return self.proxy.is_paused()
-
-  def enqueue(self, id):
-    if self.client:
-      return self.client.enqueue(id)
+  def queueItemIdIs(self, id):
+    return self._client.enqueue(id)
