@@ -23,12 +23,11 @@ class PeerTracker(protocoldirector.ProtocolDirector.Notifiee):
       self._peerNetwork.peerDel(name)
       self._logger.debug('%s removed from the peer network' % name)
 
-  def onQueueStatus(self, name, _):
-    # Make sure peer is in network, else add new peer.
+  def onQueueStatus(self, name, queue):
     if self._peerNetwork.peer(name) is None:
-      peer = peers.Peer(name)
+      peer = peers.Peer(name, queue)
       self._peerNetwork.peerIs(peer)
       self._logger.debug('%s added to the peer network' % peer.name())
-
-  def onLockStatus(self, name, _):
-    self.onQueueStatus(name, _)
+    else:
+      peer = self._peerNetwork.peer(name)
+      peer.queueIs(queue)

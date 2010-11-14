@@ -47,7 +47,8 @@ class ProtocolDirector(network.Network.Notifiee):
       self._broadcasterThread.start()
 
   def _sendQueueStatus(self):
-    msg = '%d %s' % (self._client.queue().items(), self._queueString())
+    queueString = self._client.queue().string()
+    msg = '%d %s' % (self._client.queue().items(), queueString)
     self._sendControlMessage(msgtypes.QUEUESTATUS, msg)
 
   def _sendControlMessage(self, type, message=None):
@@ -58,12 +59,6 @@ class ProtocolDirector(network.Network.Notifiee):
     while True:
       self._sendQueueStatus()
       time.sleep(10)
-
-  def _queueString(self):
-    # 'item1:size1 item2:size2 item3:size3' ...
-    cqueue = self._client.queue()
-    items = ['%s:%d' % (x.name(), x.size()) for x in cqueue.itemList()]
-    return ' '.join(items)
 
   def _doNotification(self, methodName, *args):
     for notifiee in self._notifiees:

@@ -1,13 +1,19 @@
-import time
 import exc
 
 
 class Peer(object):
-  def __init__(self, name):
+  def __init__(self, name, queue):
     self._name = name
+    self._queue = queue
 
   def name(self):
     return self._name
+
+  def queue(self):
+    return self._queue
+
+  def queueIs(self, queue):
+    self._queue = queue
 
 
 class PeerNetwork(object):
