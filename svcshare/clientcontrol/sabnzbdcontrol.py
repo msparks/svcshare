@@ -73,7 +73,7 @@ class SabnzbdControl(object):
     _rate = 0
     response = self._jsonCall('qstatus')
     try:
-      _rate = response['kbpersec']
+      _rate = response['kbpersec'] / 1024.0
     except KeyError:
       self._logger.warning('kbpersec not reported in status information')
       raise exc.ResourceException
