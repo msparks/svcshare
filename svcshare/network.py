@@ -180,7 +180,7 @@ class Bot(irclib.SimpleIRCClient):
     rand = random.randint(0, 9)
     self._nickCounter += 1
     newNickAttempt = '%s%d' % (self._nick, self._nickCounter)
-    self._logger.debug('nick %s in use, trying %s' % (event.target(),
+    self._logger.debug('nick %s in use, trying %s' % (event.arguments()[0],
                                                       newNickAttempt))
     connection.nick(newNickAttempt)
 
