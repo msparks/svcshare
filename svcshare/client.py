@@ -6,7 +6,6 @@ import time
 
 from svcshare import exc
 from svcshare import clientqueue
-from svcshare.clientcontrol import hellanzbcontrol
 from svcshare.clientcontrol import sabnzbdcontrol
 
 
@@ -20,9 +19,7 @@ class ClientMonitor(object):
     self._initializeControl(clientName, clientUrl, clientKey)
 
   def _initializeControl(self, clientName, clientUrl, clientKey):
-    if clientName == 'hellanzb':
-      self._control = hellanzbcontrol.HellanzbControl(clientUrl)
-    elif clientName == 'sabnzbd':
+    if clientName == 'sabnzbd':
       self._control = sabnzbdcontrol.SabnzbdControl(clientUrl, clientKey)
     else:
       self._logger.critical('unrecognized client: %s' % clientName)
