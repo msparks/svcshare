@@ -102,15 +102,19 @@ class Network(object):
   def leaveEventNew(self, name):
     self._doNotification('onLeaveEvent', name)
 
-  def controlMessageNew(self, name, target, type, message=None):
-    self._doNotification('onControlMessage', name, target, type, message)
+  def controlMessageNew(self, name, version, type, message=None):
+    self._doNotification('onControlMessage', name, version, type, message)
 
   def chatMessageNew(self, name, target, message):
     self._doNotification('onChatMessage', name, target, message)
 
-  def controlMessageIs(self, target, type, message=None):
+  def controlMessageIs(self, version, type, message=None):
     if self._status == STATUS['synced']:
-      self._bot.connection.ctcp(type, target, message)
+      if message is None:
+        ctcp_content = '%d %d' % (version, type)
+      else:
+        ctcp_content = '%d %d %s' % (version, type, message)
+      self._bot.connection.ctcp('SSMSG', self.channel(), ctcp_content)
 
   def chatMessageIs(self, target, message):
     if self._status == STATUS['synced']:
@@ -235,10 +239,24 @@ class Bot(irclib.SimpleIRCClient):
   def on_ctcp(self, connection, event):
     nick = event.source().split('!')[0]
     args = event.arguments()
-    type = args[0]
-    if len(args) > 1:
-      message = args[1]
+
+    if args[0] != 'SSMSG':
+      # Ignore all other CTCPs.
+      return
+    if len(args) < 3:
+      # Incomplete message.
+      return
+
+    try:
+      version = int(args[1])
+      type = int(args[2])
+    except ValueError:
+      # Not a well-formed message.
+      return
+
+    if len(args) > 3:
+      message = ' '.join(args[3:])
     else:
       message = None
-    target = event.target()
-    self._addNetworkEvent('controlMessageNew', nick, target, type, message)
+
+    self._addNetworkEvent('controlMessageNew', nick, version, type, message)
