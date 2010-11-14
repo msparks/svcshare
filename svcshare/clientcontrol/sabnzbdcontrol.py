@@ -18,6 +18,17 @@ class SabnzbdControl(object):
     self._apikey = apikey
     self._logger = logging.getLogger('SabnzbdControl')
 
+  def _jsonCall(self, mode, params=None):
+    data = self._call(mode, params)
+    response = self._parseJSON(data)
+    if 'error' in response:
+      self._logger.warning('SAB returned: %s' % response['error'])
+      raise exc.ResourceException
+    return response
+
+  def _textCall(self, mode, params=None):
+    return self._call(mode, params)
+
   def _call(self, mode, params=None):
     if params is None:
       params = {}
@@ -46,12 +57,12 @@ class SabnzbdControl(object):
 
   def pausedIs(self, paused):
     if paused:
-      self._call('pause')
+      self._textCall('pause')
     else:
-      self._call('resume')
+      self._textCall('resume')
 
   def paused(self):
-    response = self._call('qstatus')
+    response = self._jsonCall('qstatus')
     try:
       return response['paused']
     except KeyError:
@@ -60,7 +71,7 @@ class SabnzbdControl(object):
 
   def rate(self):
     _rate = 0
-    response = self._parseJSON(self._call('qstatus'))
+    response = self._jsonCall('qstatus')
     try:
       _rate = response['kbpersec']
     except KeyError:
@@ -70,10 +81,10 @@ class SabnzbdControl(object):
       return _rate
 
   def newzbinItemNew(self, id):
-    self._call('addid', {'name': id})
+    self._textCall('addid', {'name': id})
 
   def queue(self):
-    response = self._parseJSON(self._call('qstatus'))
+    response = self._jsonCall('qstatus')
     _queue = clientqueue.ClientQueue()
 
     for item in response['jobs']:
