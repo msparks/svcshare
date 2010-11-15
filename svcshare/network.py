@@ -256,6 +256,6 @@ class Bot(irclib.SimpleIRCClient):
     if len(msg) > 3:
       message = ' '.join(msg[2:])
     else:
-      message = None
+      message = ''
 
     self._addNetworkEvent('controlMessageNew', nick, version, type, message)

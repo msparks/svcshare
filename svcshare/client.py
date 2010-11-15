@@ -69,7 +69,7 @@ class Client(object):
     self._queue = queue
 
   def lockset(self):
-    return self._locks
+    return self._lockset
 
   def locksetIs(self, locks):
     self._lockset = locks

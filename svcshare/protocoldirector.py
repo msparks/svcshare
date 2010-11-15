@@ -29,10 +29,10 @@ class ProtocolDirector(network.Network.Notifiee):
     def onLeaveEvent(self, name):
       pass
 
-    def onQueueStatus(self, clientQueue):
+    def onQueueStatus(self, name, queue):
       pass
 
-    def onLockStatus(self, lockInfo):
+    def onLockStatus(self, name, locks):
       pass
 
   def __init__(self, net, client):
@@ -48,6 +48,10 @@ class ProtocolDirector(network.Network.Notifiee):
       self._broadcasterThread.daemon = True
       self._broadcasterThread.start()
 
+  def _sendLockStatus(self):
+    lockString = self._client.lockset().string()
+    self._sendControlMessage(msgtypes.LOCKSTATUS, lockString)
+
   def _sendQueueStatus(self):
     queueString = self._client.queue().string()
     msg = '%d %s' % (self._client.queue().items(), queueString)
@@ -59,11 +63,16 @@ class ProtocolDirector(network.Network.Notifiee):
   def _broadcaster(self):
     time.sleep(5)
     oldQueue = self._client.queue()
+    oldLocks = self._client.lockset()
     while True:
       if self._client.queue() != oldQueue:
         self._sendQueueStatus()
         oldQueue = self._client.queue()
-      time.sleep(10)
+      time.sleep(5)
+      if self._client.lockset() != oldLocks:
+        self._sendLockStatus()
+        oldLocks = self._client.lockset()
+      time.sleep(5)
 
   def _doNotification(self, methodName, *args):
     for notifiee in self._notifiees:
@@ -76,6 +85,7 @@ class ProtocolDirector(network.Network.Notifiee):
 
   def onJoinEvent(self, name):
     self._sendQueueStatus()
+    self._sendLockStatus()
 
   def onLeaveEvent(self, name):
     self._doNotification('onLeaveEvent', name)
