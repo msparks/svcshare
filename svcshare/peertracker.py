@@ -24,6 +24,9 @@ class PeerTracker(protocoldirector.ProtocolDirector.Notifiee):
   def peerNetwork(self):
     return self._peerNetwork
 
+  def onSelfJoinEvent(self):
+    self._logger.debug('joined the control channel')
+
   def onSelfLeaveEvent(self):
     self._logger.debug('left the control channel, flushing peer network')
     self._peerNetwork.networkEmpty()

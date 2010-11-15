@@ -40,16 +40,17 @@ class Scheduler(protocoldirector.ProtocolDirector.Notifiee):
   def isolationIs(self, iso):
     if iso == 'isolated':
       self._isolation = ISOLATION[iso]
-      self._isolationOnJon = ISOLATION[iso]
+      self._isolationOnJoin = ISOLATION[iso]
     elif iso == 'open':
       self._isolation = ISOLATION[iso]
-      self._isolationOnJon = ISOLATION[iso]
+      self._isolationOnJoin = ISOLATION[iso]
       if not self._schedulerThread.is_alive():
         self._schedulerThread.start()
 
   def onSelfLeaveEvent(self):
-    self._isolationOnJoin = self._isolation
+    oldIsolation = self._isolation
     self.isolationIs(ISOLATION['isolated'])
+    self._isolationOnJoin = oldIsolation
 
   def onSelfJoinEvent(self):
     self.isolationIs(self._isolationOnJoin)
