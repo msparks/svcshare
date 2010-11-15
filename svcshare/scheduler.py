@@ -16,6 +16,7 @@ ISOLATION = {'isolated': 'isolated',
 class Scheduler(protocoldirector.ProtocolDirector.Notifiee):
   def __init__(self, pd, client):
     protocoldirector.ProtocolDirector.Notifiee.__init__(self)
+    self.notifierIs(pd)
     self._pd = pd
     self._client = client
     self._logger = logging.getLogger('Scheduler')
