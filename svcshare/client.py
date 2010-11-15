@@ -6,6 +6,7 @@ import time
 
 from svcshare import exc
 from svcshare import clientqueue
+from svcshare import lockset
 from svcshare.clientcontrol import sabnzbdcontrol
 
 
@@ -53,6 +54,7 @@ class Client(object):
       from ctypes.util import find_library
       cdll.LoadLibrary(find_library('SystemConfiguration'))
 
+    self._lockset = lockset.LockSet()
     self._queue = clientqueue.ClientQueue()
     self._monitor = ClientMonitor(self, clientName, clientUrl, clientKey)
     self._monitorThread = threading.Thread(target=self._monitor.start)
@@ -65,6 +67,12 @@ class Client(object):
 
   def queueIs(self, queue):
     self._queue = queue
+
+  def lockset(self):
+    return self._locks
+
+  def locksetIs(self, locks):
+    self._lockset = locks
 
   def control(self):
     return self._monitor.control()
