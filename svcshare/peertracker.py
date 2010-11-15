@@ -12,6 +12,15 @@ class PeerTracker(protocoldirector.ProtocolDirector.Notifiee):
     self._logger = logging.getLogger('PeerTracker')
     self._peerNetwork = peers.PeerNetwork()
 
+  def _peer(self, name):
+    if self._peerNetwork.peer(name) is None:
+      peer = peers.Peer(name)
+      self._peerNetwork.peerIs(peer)
+      self._logger.debug('%s added to the peer network' % name)
+      return peer
+    else:
+      return self._peerNetwork.peer(name)
+
   def peerNetwork(self):
     return self._peerNetwork
 
@@ -24,10 +33,11 @@ class PeerTracker(protocoldirector.ProtocolDirector.Notifiee):
       self._logger.debug('%s removed from the peer network' % name)
 
   def onQueueStatus(self, name, queue):
-    if self._peerNetwork.peer(name) is None:
-      peer = peers.Peer(name, queue)
-      self._peerNetwork.peerIs(peer)
-      self._logger.debug('%s added to the peer network' % peer.name())
-    else:
-      peer = self._peerNetwork.peer(name)
-      peer.queueIs(queue)
+    peer = self._peer(name)
+    peer.queueIs(queue)
+    self._logger.debug('%s queue: %s' % (name, queue))
+
+  def onLockStatus(self, name, locks):
+    peer = self._peer(name)
+    peer.locksetIs(locks)
+    self._logger.debug('%s locks: %s' % (name, locks))

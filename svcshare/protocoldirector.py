@@ -98,10 +98,8 @@ class ProtocolDirector(network.Network.Notifiee):
     if type == msgtypes.QUEUESTATUS:
       queue = clientqueue.ClientQueue()
       queue.stringIs(message)
-      self._logger.debug('[%s] queue: %s' % (name, queue))
       self._doNotification('onQueueStatus', name, queue)
     elif type == msgtypes.LOCKSTATUS:
       locks = lockset.LockSet()
       locks.stringIs(message)
-      self._logger.debug('[%s] locks: %s' % (name, locks))
       self._doNotification('onLockStatus', name, locks)
