@@ -194,7 +194,9 @@ class Bot(irclib.SimpleIRCClient):
 
   def on_disconnect(self, connection, event):
     self._network.statusIs('disconnected')
-    self._logger.debug('Disconnected from IRC server: %s' % event.arguments()[0])
+    msg = event.arguments()[0]
+    self._logger.debug('Disconnected from IRC server: %s' % msg)
+    self._addNetworkEvent('leaveEventNew', self._curNick)
     if self._network.isolation() == ISOLATION['open']:
       self._reconnect()
 
