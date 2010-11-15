@@ -167,6 +167,10 @@ class Bot(irclib.SimpleIRCClient):
       self._logger.debug(e)
       self._reconnect()
 
+  def disconnect(self):
+    self._logger.debug('Disconnecting')
+    self.connection.disconnect()
+
   def _addNetworkEvent(self, methodName, *args):
     if methodName in dir(self._network):
       method = getattr(self._network, methodName)
@@ -191,7 +195,8 @@ class Bot(irclib.SimpleIRCClient):
   def on_disconnect(self, connection, event):
     self._network.statusIs('disconnected')
     self._logger.debug('Disconnected from IRC server: %s' % event.arguments()[0])
-    self._reconnect()
+    if self._network.isolation() == ISOLATION['open']:
+      self._reconnect()
 
   def on_join(self, connection, event):
     nick = event.source().split('!')[0]
