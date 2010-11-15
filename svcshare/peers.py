@@ -1,10 +1,17 @@
-import exc
+from svcshare import clientqueue
+from svcshare import exc
+from svcshare import lockset
 
 
 class Peer(object):
-  def __init__(self, name, queue):
+  def __init__(self, name, queue=None, locks=None):
     self._name = name
+    if queue is None:
+      queue = clientqueue.ClientQueue()
     self._queue = queue
+    if locks is None:
+      locks = lockset.LockSet()
+    self._lockset = locks
 
   def name(self):
     return self._name
@@ -14,6 +21,12 @@ class Peer(object):
 
   def queueIs(self, queue):
     self._queue = queue
+
+  def lockset(self):
+    return self._lockset
+
+  def locksetIs(self, locks):
+    self._lockset = locks
 
 
 class PeerNetwork(object):
