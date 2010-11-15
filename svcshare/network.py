@@ -236,12 +236,12 @@ class Bot(irclib.SimpleIRCClient):
   def on_ctcp(self, connection, event):
     nick = event.source().split('!')[0]
     args = event.arguments()
-    msg = args[1].split(' ')
 
-    if args[0] != 'SSMSG':
+    if len(args) == 0 or args[0] != 'SSMSG':
       # Ignore all other CTCPs.
       return
 
+    msg = args[1].split(' ')
     if len(msg) < 2:
       # Incomplete message.
       return
