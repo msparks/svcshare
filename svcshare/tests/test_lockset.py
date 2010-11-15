@@ -32,3 +32,17 @@ class Test_LockSet:
     ls.stringIs(self._ls.string())
     assert_equals(ls, self._ls)
     assert_equals(ls.string(), self._ls.string())
+
+  def test_malformed_strings(self):
+    bad_string = 'l1:0 l2'
+    l1 = lockset.LockSetItem('l1', 0)
+    ls = lockset.LockSet()
+    ls.stringIs(bad_string)
+    assert_equals(ls.items(), 1)
+    assert_equals(ls.item('l1'), l1)
+
+    bad_string2 = 'l1:0 l2:'
+    ls2 = lockset.LockSet()
+    ls2.stringIs(bad_string2)
+    assert_equals(ls.items(), 1)
+    assert_equals(ls.item('l1'), l1)

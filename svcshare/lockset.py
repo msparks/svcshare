@@ -72,5 +72,8 @@ class LockSet(object):
       if token.count(':') != 1:
         continue
       name, locked = token.split(':')
-      locked = bool(int(locked))
+      try:
+        locked = bool(int(locked))
+      except ValueError:
+        continue
       self.itemIs(LockSetItem(name, locked))
