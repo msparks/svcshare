@@ -6,10 +6,11 @@ import sys
 import time
 
 from svcshare import client
+from svcshare import exc
 from svcshare import network
 from svcshare import peertracker
 from svcshare import protocoldirector
-from svcshare import exc
+from svcshare import scheduler
 
 import config
 
@@ -73,6 +74,10 @@ def main():
   logging.debug('Initializing peer tracker')
   pt = peertracker.PeerTracker()
   pt.notifierIs(pd)
+
+  logging.debug('Initializing scheduler')
+  sched = scheduler.Scheduler(pd, c)
+  sched.isolationIs('open')
 
   # pause client
   #control.pausedIs(True)
