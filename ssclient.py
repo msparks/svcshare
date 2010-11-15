@@ -27,8 +27,14 @@ def initializeSignals():
     logging.critical('sigint received, exiting')
     sys.exit(1)
 
+  def sigusr1Handler(signum, frame):
+    logging.info('sigusr1 received, dropping into debugger')
+    import pdb
+    pdb.set_trace()
+
   signal.signal(signal.SIGHUP, sighupHandler)
   signal.signal(signal.SIGINT, sigintHandler)
+  signal.signal(signal.SIGUSR1, sigusr1Handler)
 
 
 def main():
