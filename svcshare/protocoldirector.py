@@ -23,10 +23,16 @@ class ProtocolDirector(network.Network.Notifiee):
       self._notifier = notifier
       notifier._notifiees.append(self)
 
-    def onJoinEvent(self, name):
+    def onSelfJoinEvent(self):
       pass
 
-    def onLeaveEvent(self, name):
+    def onSelfLeaveEvent(self):
+      pass
+
+    def onPeerJoinEvent(self, name):
+      pass
+
+    def onPeerLeaveEvent(self, name):
       pass
 
     def onQueueStatus(self, name, queue):
@@ -87,8 +93,16 @@ class ProtocolDirector(network.Network.Notifiee):
     self._sendQueueStatus()
     self._sendLockStatus()
 
+    if name == self._net.nick():
+      self._doNotification('onSelfJoinEvent')
+    else:
+      self._doNotification('onPeerJoinEvent', name)
+
   def onLeaveEvent(self, name):
-    self._doNotification('onLeaveEvent', name)
+    if name == self._net.nick():
+      self._doNotification('onSelfLeaveEvent')
+    else:
+      self._doNotification('onPeerLeaveEvent', name)
 
   def onControlMessage(self, name, version, type, message=None):
     # TODO(ms): logging needed here; also magic number

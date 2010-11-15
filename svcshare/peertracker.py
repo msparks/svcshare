@@ -24,11 +24,12 @@ class PeerTracker(protocoldirector.ProtocolDirector.Notifiee):
   def peerNetwork(self):
     return self._peerNetwork
 
-  def onLeaveEvent(self, name):
-    if name == self._notifier.network().nick():
-      self._logger.debug('left the control channel, flushing peer network')
-      self._peerNetwork.networkEmpty()
-    elif self._peerNetwork.peer(name) is not None:
+  def onSelfLeaveEvent(self):
+    self._logger.debug('left the control channel, flushing peer network')
+    self._peerNetwork.networkEmpty()
+
+  def onPeerLeaveEvent(self, name):
+    if self._peerNetwork.peer(name) is not None:
       self._peerNetwork.peerDel(name)
       self._logger.debug('%s removed from the peer network' % name)
 
