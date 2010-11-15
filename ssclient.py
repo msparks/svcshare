@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import logging
+import optparse
 import os
 import sys
 import time
@@ -37,7 +38,16 @@ def initializeSignals():
   signal.signal(signal.SIGUSR1, sigusr1Handler)
 
 
+def parseArgs():
+  parser = optparse.OptionParser()
+  parser.add_option('-p', '--pdb', action='store_true', default=False,
+                    help='drop into PDB after initialization')
+  (options, args) = parser.parse_args()
+  return (options, args)
+
+
 def main():
+  options, args = parseArgs()
   initializeSignals()
 
   # set up logging
@@ -66,6 +76,11 @@ def main():
 
   # pause client
   #control.pausedIs(True)
+
+  if options.pdb:
+    time.sleep(2)
+    import pdb
+    pdb.set_trace()
 
   logging.debug('Main thread sleeping')
   while True:
