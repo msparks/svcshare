@@ -4,6 +4,7 @@ import time
 
 from svcshare import clientqueue
 from svcshare import exc
+from svcshare import lockset
 from svcshare import msgtypes
 from svcshare import network
 
@@ -85,6 +86,12 @@ class ProtocolDirector(network.Network.Notifiee):
       return
 
     if type == msgtypes.QUEUESTATUS:
-      self._doNotification('onQueueStatus', name, None)
+      queue = clientqueue.ClientQueue()
+      queue.stringIs(message)
+      self._logger.debug('[%s] queue: %s' % (name, queue))
+      self._doNotification('onQueueStatus', name, queue)
     elif type == msgtypes.LOCKSTATUS:
-      self._doNotification('onLockStatus', name, None)
+      locks = lockset.LockSet()
+      locks.stringIs(message)
+      self._logger.debug('[%s] locks: %s' % (name, locks))
+      self._doNotification('onLockStatus', name, locks)
