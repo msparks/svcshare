@@ -68,5 +68,8 @@ class ClientQueue(object):
       if token.count(':') != 1:
         continue
       name, size = token.split(':')
-      size = int(size)
+      try:
+        size = int(size)
+      except ValueError:
+        continue
       self.itemIs(ClientQueueItem(name, size))

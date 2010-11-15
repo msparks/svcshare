@@ -41,3 +41,16 @@ class Test_ClientQueue:
     q.stringIs(self._queue.string())
     assert_equals(q, self._queue)
     assert_equals(q.string(), self._queue.string())
+
+  def test_malformed_strings(self):
+    bad_string = 'foo:1234 bar'
+    item1 = clientqueue.ClientQueueItem('foo', 1234)
+    q = clientqueue.ClientQueue()
+    q.stringIs(bad_string)
+    assert_equals(q.items(), 1)
+    assert_equals(q.item(0), item1)
+
+    bad_string2 = 'foo:1234 bar:'
+    q.stringIs(bad_string2)
+    assert_equals(q.items(), 1)
+    assert_equals(q.item(0), item1)
