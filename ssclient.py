@@ -236,18 +236,19 @@ class BotCallbacks(BotCtcpCallbacks):
 
 class SvcshareState(object):
   def __init__(self):
-    self._force_end_bytes = proxy.transferred()
+    self._force_end_bytes = proxy.stats().totalTransferred()
     self._halt_end_time = time.time()
     self.last_force_state = False
 
   def force(self, allotment=0):
-    self._force_end_bytes = proxy.transferred() + allotment * 1024 * 1024
+    self._force_end_bytes = (proxy.stats().totalTransferred() +
+                             allotment * 1024 * 1024)
     svcclient.resume()
 
   def force_diff(self):
     """Get the remaining forced allotment in MB
     """
-    diff = self._force_end_bytes - proxy.transferred()
+    diff = self._force_end_bytes - proxy.stats().totalTransferred()
     if diff < 0:
       diff = 0
     return diff / 1024.0 / 1024.0
@@ -263,7 +264,7 @@ class SvcshareState(object):
   def unforce(self):
     """Clear forced state
     """
-    self._force_end_bytes = proxy.transferred()
+    self._force_end_bytes = proxy.stats().totalTransferred()
 
   def halt(self, minutes=0):
     """Put system into a halted state.
@@ -322,7 +323,7 @@ class Bot(irclib.SimpleIRCClient):
     self._unhalt_on_connect = True
 
   def _status_msg(self):
-    active = proxy.num_active()
+    active = proxy.stats().activeConnections()
     extra = ["%d conn" % active]
 
     if state.forced():
@@ -369,7 +370,7 @@ class Bot(irclib.SimpleIRCClient):
     self.connection.ctcp("SS_CONNSTAT", self.channel)
 
   def send_connupdate(self, target):
-    count = proxy.num_active()
+    count = proxy.stats().activeConnections()
     self.connection.ctcp("SS_CONNUPDATE", target,
                          "%s %d" % (config.NICK, count))
 
@@ -487,7 +488,7 @@ class Bot(irclib.SimpleIRCClient):
     msg = event.arguments()[0]
 
     # .status
-    if msg == ".status" and proxy.num_active() > 0:
+    if msg == ".status" and proxy.stats().activeConnections() > 0:
       self.cb.msg_eta(self, event, event.target(), "")
 
     # .version
@@ -525,8 +526,8 @@ def check_connections():
   global start_bytes_transferred
   global total_bytes_transferred
 
-  total_bytes_transferred = proxy.transferred()
-  active = proxy.num_active()
+  total_bytes_transferred = proxy.stats().totalTransferred()
+  active = proxy.stats().activeConnections()
 
   if active != cur_count and (active == 0 or cur_count == 0):
     pl = active == 1 and "connection" or "connections"
@@ -781,8 +782,8 @@ def main():
   # set up connection proxy
   _local_addr = (config.LOCAL_HOST, config.LOCAL_PORT)
   _target_addr = (config.TARGET_HOST, config.TARGET_PORT)
-  proxy = connectionproxy.ConnectionProxyServer(_local_addr, _target_addr)
-  proxy.start()
+  proxy = connectionproxy.ConnectionProxy(_local_addr, _target_addr)
+  proxy.runningIs(True)
 
   # state
   state = SvcshareState()

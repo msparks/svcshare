@@ -28,12 +28,12 @@ class ClientControl(object):
       self.client = None
 
   def pause(self):
-    self.proxy.pause()
+    self.proxy.runningIs(False)
     if self.client:
       return self.client.pause()
 
   def resume(self):
-    self.proxy.resume()
+    self.proxy.runningIs(True)
     if self.client:
       return self.client.resume()
 
@@ -50,7 +50,7 @@ class ClientControl(object):
       return 0
 
   def is_paused(self):
-    return self.proxy.is_paused()
+    return self.proxy.running()
 
   def enqueue(self, id):
     if self.client:
