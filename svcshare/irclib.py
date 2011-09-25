@@ -65,6 +65,7 @@ import bisect
 import re
 import select
 import socket
+import ssl as _ssl
 import string
 import sys
 import time
@@ -428,6 +429,7 @@ class ServerConnection(Connection):
         self.localaddress = localaddress
         self.localport = localport
         self.localhost = socket.gethostname()
+        self.last_event = time.time()
         if ipv6:
             self.socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         else:
@@ -436,7 +438,7 @@ class ServerConnection(Connection):
             self.socket.bind((self.localaddress, self.localport))
             self.socket.connect((self.server, self.port))
             if ssl:
-                self.ssl = socket.ssl(self.socket)
+                self.ssl = _ssl.wrap_socket(self.socket)
         except socket.error, x:
             self.socket.close()
             self.socket = None
@@ -490,6 +492,8 @@ class ServerConnection(Connection):
 
     def process_data(self):
         """[Internal]"""
+        if not self.is_connected():
+            return
 
         try:
             if self.ssl:
@@ -620,7 +624,7 @@ class ServerConnection(Connection):
         Args:
           timeout: time to allow between events.
         """
-        if self.last_event + timeout < time.time():
+        if self.is_connected() and self.last_event + timeout < time.time():
           self.disconnect("Ping timeout")
 
     def is_connected(self):
