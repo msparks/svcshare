@@ -10,7 +10,6 @@ import time
 from svcshare.clientcontrol import clientcontrol
 from svcshare import connectionproxy
 from svcshare import electiontracker
-from svcshare import feedwatcher
 from svcshare import irclib
 from svcshare import jobqueue
 from svcshare import peertracker
@@ -28,7 +27,6 @@ start_time = 0
 bot = None
 svcclient = None
 proxy = None
-feeds = None
 tracker = None
 election = None
 jobs = None
@@ -420,7 +418,6 @@ class Bot(irclib.SimpleIRCClient):
       if self._first_time:
         # adding jobs to job queue
         jobs.add_job(check_connections, delay=10, periodic=True)
-        jobs.add_job(check_feeds, delay=config.FEED_POLL_PERIOD, periodic=True)
         jobs.add_job(check_queue, delay=1800, periodic=True)
         jobs.add_job(check_queue, delay=10)
         jobs.add_job(check_for_force_transition, delay=10, periodic=True)
@@ -705,35 +702,6 @@ def check_election():
   election = None
 
 
-def check_feeds():
-  logging.debug("Refreshing feeds...")
-  for url in config.NEWZBIN_FEEDS:
-    if not url:
-      continue
-
-    entries = feeds.poll_feed(url)
-    for entry in entries:
-      id = feeds.extract_nzbid(entry.id)
-      title = entry.title
-      nfo = entry.get("filename") or entry.get("report_filename") or "no nfo"
-      if nfo[-4:] == ".nfo":
-        nfo = nfo[:-4]
-      size_b = entry.get("size") or entry.get("report_size") or 0
-      size_mb = int(size_b) / 1024.0 / 1024.0
-      msg = "[%d] %s [%s; %d MB]" % (id, title, nfo, size_mb)
-
-      # send message to bot owner
-      bot.connection.privmsg(config.NICK, msg)
-
-      if getattr(config, "AUTO_QUEUE", True)  and svcclient.enqueue(id):
-        logging.info("Auto-queued: %s" % msg)
-
-      feeds.mark_old(entry)
-
-  feeds.save()
-  jobs.add_job(check_queue)
-
-
 def version_string():
   git_path = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),
                                            ".git/refs/heads/master"))
@@ -758,7 +726,6 @@ def ircloop():
 
 def main():
   global bot
-  global feeds
   global jobs
   global proxy
   global state
@@ -796,11 +763,6 @@ def main():
                                           _client_key)
   svcclient.pause()
   state.halt(0)  # start halted
-
-  # set up feedwatcher
-  _path = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),
-                                        config.FEED_DATA_FILE))
-  feeds = feedwatcher.Feedwatcher(_path)
 
   # set up peer tracker (keep track of other bots)
   tracker = peertracker.PeerTracker()
