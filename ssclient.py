@@ -381,6 +381,15 @@ class NetworkMessageReactor(network.Network.Notifiee):
         cb(name, target, ext)
     else:
       # Public messages to the control channel.
+
+      # Public '.status' request.
+      if message == '.status' and proxy.stats().activeConnections() > 0:
+        self._msgStatus(name, target, None)
+
+      # Public '.version' request.
+      if message == '.version':
+        self._msgVersion(name, target, None)
+
       my_name = self._notifier._bot.nick
       m = re.search(
           r'^(%s):\s*(.+?)(?:\s+(.+?))?\s*$' % re.escape(my_name), message)
@@ -687,17 +696,6 @@ class Bot(irclib.SimpleIRCClient):
     msg = event.arguments()[0]
     target = event.target()
     self._addNetworkEvent('chatMessageNew', nick, target, msg)
-
-    if target != self.channel:
-      return
-
-    # .status
-    if msg == ".status" and proxy.stats().activeConnections() > 0:
-      self.cb.msg_eta(self, event, event.target(), "")
-
-    # .version
-    if msg == ".version":
-      self.cb.msg_version(self, event, event.target(), "")
 
   def on_ctcp(self, connection, event):
     nick = event.source().split('!')[0]
