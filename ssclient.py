@@ -313,14 +313,45 @@ class NetworkReactor(network.Network.Notifiee):
     network.Network.Notifiee.__init__(self)
     self._logger = logging.getLogger('NetworkReactor')
 
+    self._first_time = True
+    self._unhalt_on_connect = True
+
   def onStatus(self, status):
     self._logger.info('Status is: %s.' % status)
 
   def onJoinEvent(self, name):
     self._logger.info('%s joined the network.' % name)
 
+    # TODO(ms): Put the nick in Network.
+    if name == self._notifier._bot.nick:
+      if self._first_time:
+        # adding jobs to job queue
+        jobs.add_job(check_connections, delay=10, periodic=True)
+        jobs.add_job(check_queue, delay=1800, periodic=True)
+        jobs.add_job(check_queue, delay=10)
+        jobs.add_job(check_for_force_transition, delay=10, periodic=True)
+        jobs.add_job(check_for_queue_transition, delay=60, periodic=True)
+        self._first_time = False
+
+      self._logger.debug('Sending SS_ANNOUNCE')
+      tracker.clear()
+      self._notifier._bot.connection.ctcp('SS_ANNOUNCE',
+                                          self._notifier._bot.channel)
+      if self._unhalt_on_connect:
+        jobs.add_job(state.unhalt, delay=8)
+
   def onLeaveEvent(self, name):
     self._logger.info('%s left the network.' % name)
+
+    # TODO(ms): Put the nick in Network.
+    if name == self._notifier._bot.nick:
+      svcclient.pause()
+      state.unforce()
+      if state.halted():
+        self._unhalt_on_connect = False
+      else:
+        self._unhalt_on_connect = True
+        state.halt(0)
 
   def onControlMessage(self, name, target, type, message=None):
     self._logger.debug('[Control message] <%s:%s> [%s] %s' % (name, target,
@@ -344,8 +375,6 @@ class Bot(irclib.SimpleIRCClient):
     self.ssl = ssl
 
     self._nick_counter = 1
-    self._first_time = True
-    self._unhalt_on_connect = True
     self._reconnect_delay = 15
     self._rejoin_delay = 5
     self._logger = logging.getLogger('Bot')
@@ -466,14 +495,6 @@ class Bot(irclib.SimpleIRCClient):
     # We left the network.
     self._addNetworkEvent('leaveEventNew', self.nick)
 
-    svcclient.pause()
-    state.unforce()
-    if state.halted():
-      self._unhalt_on_connect = False
-    else:
-      self._unhalt_on_connect = True
-      state.halt(0)
-
     self._reconnect()
 
   def on_join(self, connection, event):
@@ -484,22 +505,6 @@ class Bot(irclib.SimpleIRCClient):
     if nick == self.nick and target == self.channel:
       self._network.statusIs(network.STATUS['synced'])
     self._addNetworkEvent('joinEventNew', nick)
-
-    if nick == self.nick and target == self.channel:
-      if self._first_time:
-        # adding jobs to job queue
-        jobs.add_job(check_connections, delay=10, periodic=True)
-        jobs.add_job(check_queue, delay=1800, periodic=True)
-        jobs.add_job(check_queue, delay=10)
-        jobs.add_job(check_for_force_transition, delay=10, periodic=True)
-        jobs.add_job(check_for_queue_transition, delay=60, periodic=True)
-        self._first_time = False
-
-      self._logger.debug('Sending SS_ANNOUNCE')
-      tracker.clear()
-      connection.ctcp('SS_ANNOUNCE', target)
-      if self._unhalt_on_connect:
-        jobs.add_job(state.unhalt, delay=8)
 
   def on_part(self, connection, event):
     nick = event.source().split('!')[0]
