@@ -58,6 +58,22 @@ class Network(object):
     """
     self._bot = bot
 
+  def server(self):
+    if self._bot:
+      return self._bot.server
+
+  def port(self):
+    if self._bot:
+      return self._bot.port
+
+  def nick(self):
+    if self._bot:
+      return self._bot.nick
+
+  def channel(self):
+    if self._bot:
+      return self._bot.channel
+
   def status(self):
     return self._status
 

@@ -235,8 +235,7 @@ class NetworkReactor(network.Network.Notifiee):
   def onJoinEvent(self, name):
     self._logger.info('%s joined the network.' % name)
 
-    # TODO(ms): Put the nick in Network.
-    if name == self._notifier._bot.nick:
+    if name == self._notifier.nick():
       if self._first_time:
         # adding jobs to job queue
         jobs.add_job(check_connections, delay=10, periodic=True)
@@ -249,15 +248,14 @@ class NetworkReactor(network.Network.Notifiee):
       self._logger.debug('Sending SS_ANNOUNCE')
       tracker.clear()
       self._notifier._bot.connection.ctcp('SS_ANNOUNCE',
-                                          self._notifier._bot.channel)
+                                          self._notifier.channel())
       if self._unhalt_on_connect:
         jobs.add_job(state.unhalt, delay=8)
 
   def onLeaveEvent(self, name):
     self._logger.info('%s left the network.' % name)
 
-    # TODO(ms): Put the nick in Network.
-    if name == self._notifier._bot.nick:
+    if name == self._notifier.nick():
       svcclient.pause()
       state.unforce()
       if state.halted():
@@ -303,7 +301,7 @@ class NetworkMessageReactor(network.Network.Notifiee):
       if message == '.version':
         self._msgVersion(name, target, None)
 
-      my_name = self._notifier._bot.nick
+      my_name = self._notifier.nick()
       m = re.search(
           r'^(%s):\s*(.+?)(?:\s+(.+?))?\s*$' % re.escape(my_name), message)
       if not m:
@@ -341,9 +339,8 @@ class NetworkMessageReactor(network.Network.Notifiee):
     if not ext:
       return
 
-    # TODO(ms): Put channel in Network, too.
     if target is None:
-      target = self._notifier._bot.channel
+      target = self._notifier.channel()
     ids = ext.split(' ')
     qd_ids = []
     for id in ids:
@@ -366,9 +363,8 @@ class NetworkMessageReactor(network.Network.Notifiee):
 
     self._logger.debug('Forcing for a minimum of %d MB.' % min_mb)
 
-    # TODO(ms): Put channel in Network, too.
     if target is None:
-      target = self._notifier._bot.channel
+      target = self._notifier.channel()
     self._notifier.chatMessageIs(target,
                                  'Resuming. Forced allotment: %d MB.' % min_mb)
     self._notifier._bot.send_yield()
@@ -388,18 +384,16 @@ class NetworkMessageReactor(network.Network.Notifiee):
 
     self._logger.debug('Halting %s.' % time_str)
 
-    # TODO(ms): Put channel in Network, too.
     if target is None:
-      target = self._notifier._bot.channel
+      target = self._notifier.channel()
     self._notifier.chatMessageIs(target, 'Halting %s.' % time_str)
     svcclient.pause()
     state.unforce()
     state.halt(minutes)
 
   def _msgUnhalt(self, name, target, ext):
-    # TODO(ms): Put channel in Network, too.
     if target is None:
-      target = self._notifier._bot.channel
+      target = self._notifier.channel()
 
     if state.halted():
       state.unhalt()
@@ -410,9 +404,8 @@ class NetworkMessageReactor(network.Network.Notifiee):
       self._notifier.chatMessageIs(target, 'System was not in halted state.')
 
   def _msgPause(self, name, target, ext):
-    # TODO(ms): Put channel in Network, too.
     if target is None:
-      target = self._notifier._bot.channel
+      target = self._notifier.channel()
 
     if svcclient.pause():
       self._notifier.chatMessageIs(target, 'Paused.')
@@ -422,9 +415,8 @@ class NetworkMessageReactor(network.Network.Notifiee):
     state.unforce()
 
   def _msgVersion(self, name, target, ext):
-    # TODO(ms): Put channel in Network, too.
     if target is None:
-      target = self._notifier._bot.channel
+      target = self._notifier.channel()
 
     self._notifier.chatMessageIs(target,
                                  'svcshare version %s' % _version_string)
