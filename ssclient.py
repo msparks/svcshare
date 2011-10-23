@@ -399,6 +399,114 @@ class NetworkMessageReactor(network.Network.Notifiee):
       target = name
     self._notifier._bot.announce_status(target)
 
+  def _msgElection(self, name, target, ext):
+    if state.halted():
+      self._notifier._bot.send_halt_error(target)
+      return
+
+    queue_size = svcclient.queue_size()
+    start_election(queue_size, major=True)
+    self._notifier.chatMessageIs(target, 'Election started.')
+  _msgResume = _msgElection
+  _msgContinue = _msgElection
+
+  def _msgEnqueue(self, name, target, ext):
+    # Verify the caller is the owner of the bot.
+    if name != config.NICK:
+      return
+
+    # We need something to enqueue.
+    if not ext:
+      return
+
+    # TODO(ms): Put channel in Network, too.
+    if target is None:
+      target = self._notifier._bot.channel
+    ids = ext.split(' ')
+    qd_ids = []
+    for id in ids:
+      if id and svcclient.enqueue(id):
+        qd_ids.append(id)
+    if qd_ids:
+      self._notifier.chatMessageIs(target, 'Queued: %s' % ', '.join(qd_ids))
+      jobs.add_job(check_queue, delay=10)
+    else:
+      self._notifier.chatMessageIs(target, 'Failed to queue items.')
+  _msgEnq = _msgEnqueue
+
+  def _msgForce(self, name, target, ext):
+    try:
+      queue_size = svcclient.queue_size()
+      min_mb = int(ext)
+      min_mb = min_mb < queue_size and min_mb or queue_size
+    except (TypeError, ValueError):
+      min_mb = 0
+
+    self._logger.debug('Forcing for a minimum of %d MB.' % min_mb)
+
+    # TODO(ms): Put channel in Network, too.
+    if target is None:
+      target = self._notifier._bot.channel
+    self._notifier.chatMessageIs(target,
+                                 'Resuming. Forced allotment: %d MB.' % min_mb)
+    self._notifier._bot.send_yield()
+    if state.halted():
+      self._logger.debug('Unhalting.')
+      state.unhalt()
+    state.force(allotment=min_mb)
+
+  def _msgHalt(self, name, target, ext):
+    try:
+      minutes = int(ext)
+    except (TypeError, ValueError):
+      minutes = 0
+      time_str = 'indefinitely'
+    else:
+      time_str = 'for %d minutes' % minutes
+
+    self._logger.debug('Halting %s.' % time_str)
+
+    # TODO(ms): Put channel in Network, too.
+    if target is None:
+      target = self._notifier._bot.channel
+    self._notifier.chatMessageIs(target, 'Halting %s.' % time_str)
+    svcclient.pause()
+    state.unforce()
+    state.halt(minutes)
+
+  def _msgUnhalt(self, name, target, ext):
+    # TODO(ms): Put channel in Network, too.
+    if target is None:
+      target = self._notifier._bot.channel
+
+    if state.halted():
+      state.unhalt()
+      jobs.add_job(check_queue)
+      self._logger.debug('Unhalted.')
+      self._notifier.chatMessageIs(target, 'Unhalted.')
+    else:
+      self._notifier.chatMessageIs(target, 'System was not in halted state.')
+
+  def _msgPause(self, name, target, ext):
+    # TODO(ms): Put channel in Network, too.
+    if target is None:
+      target = self._notifier._bot.channel
+
+    if svcclient.pause():
+      self._notifier.chatMessageIs(target, 'Paused.')
+    else:
+      self._notifier.chatMessageIs(target,
+                                   'Paused proxy. Failed to pause client.')
+    state.unforce()
+
+  def _msgVersion(self, name, target, ext):
+    # TODO(ms): Put channel in Network, too.
+    if target is None:
+      target = self._notifier._bot.channel
+
+    self._notifier.chatMessageIs(target,
+                                 'svcshare version %s' % _version_string)
+
 
 class Bot(irclib.SimpleIRCClient):
   def __init__(self, network, server, port, nick, channel, cb, ssl=False):
@@ -574,16 +682,6 @@ class Bot(irclib.SimpleIRCClient):
     target = None
     self._addNetworkEvent('chatMessageNew', nick, target, msg)
 
-    m = re.search(r"^\s*(.+?)(?:\s+(.+?))?\s*$", msg)
-    if not m:
-      return
-    command, ext = m.group(1).lower(), m.group(2)
-
-    callback = getattr(self.cb, 'msg_%s' % command, None)
-    if callback is not None:
-      # jump to callback
-      callback(self, event, nick, ext)
-
   def on_pubmsg(self, connection, event):
     nick = event.source().split('!')[0]
     msg = event.arguments()[0]
@@ -600,20 +698,6 @@ class Bot(irclib.SimpleIRCClient):
     # .version
     if msg == ".version":
       self.cb.msg_version(self, event, event.target(), "")
-
-    m = re.search(r"^(%s):\s*(.+?)(?:\s+(.+?))?\s*$" % re.escape(self.nick),
-                  msg)
-    if not m:
-      return
-
-    target, command, ext = m.group(1), m.group(2).lower(), m.group(3)
-    if target.lower() != self.nick.lower():
-      return
-
-    callback = getattr(self.cb, "msg_%s" % command, None)
-    if callback is not None:
-      # jump to callback
-      callback(self, event, event.target(), ext)
 
   def on_ctcp(self, connection, event):
     nick = event.source().split('!')[0]
