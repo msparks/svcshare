@@ -313,6 +313,19 @@ class NetworkReactor(network.Network.Notifiee):
     network.Network.Notifiee.__init__(self)
     self._logger = logging.getLogger('NetworkReactor')
 
+  def onStatus(self, status):
+    self._logger.info('Status is: %s.' % status)
+
+  def onJoinEvent(self, name):
+    self._logger.info('%s joined the network.' % name)
+
+  def onLeaveEvent(self, name):
+    self._logger.info('%s left the network.' % name)
+
+  def onControlMessage(self, name, target, type, message=None):
+    self._logger.debug('[Control message] <%s:%s> [%s] %s' % (name, target,
+                                                              type, message))
+
   def onChatMessage(self, name, target, message):
     self._logger.debug('<%s:%s> %s' % (name, target, message))
 
