@@ -330,6 +330,7 @@ class Bot(irclib.SimpleIRCClient):
     self._nick_counter = 1
     self._first_time = True
     self._unhalt_on_connect = True
+    self._logger = logging.getLogger('Bot')
 
   def _addNetworkEvent(self, method_name, *args):
     method = getattr(self._network, method_name, None)
@@ -401,10 +402,11 @@ class Bot(irclib.SimpleIRCClient):
 
   def on_nicknameinuse(self, connection, event):
     # When nick is in use, append a number to the base nick.
-    rand = random.randint(0, 9)
-    time.sleep(1)
+    old_nick = event.arguments()[0]
     self._nick_counter += 1
-    connection.nick("%s%d" % (self.nick, self._nick_counter))
+    new_nick = '%s%d' % (self.nick, self._nick_counter)
+    self._logger.debug('nick %s in use, trying %s' % (old_nick, new_nick))
+    connection.nick(new_nick))
 
   def on_welcome(self, connection, event):
     self.nick = event.target()
