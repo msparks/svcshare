@@ -473,10 +473,12 @@ class Bot(irclib.SimpleIRCClient):
       logging.debug('current peers: %s' % ', '.join(tracker.peers()))
 
   def on_quit(self, connection, event):
-    nick = event.source().split("!")[0]
-    logging.debug("QUIT %s" % nick)
+    nick = event.source().split('!')[0]
+    logging.debug('quit %s' % nick)
+    self._addNetworkEvent('leaveEventNew', nick)
+
     tracker.remove(nick)
-    logging.debug("current peers: %s" % ", ".join(tracker.peers()))
+    logging.debug('current peers: %s' % ', '.join(tracker.peers()))
 
   def on_kick(self, connection, event):
     kicked_nick = event.arguments()[0]
