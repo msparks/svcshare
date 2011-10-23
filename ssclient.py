@@ -406,7 +406,7 @@ class Bot(irclib.SimpleIRCClient):
     self._nick_counter += 1
     new_nick = '%s%d' % (self.nick, self._nick_counter)
     self._logger.debug('Nick %s in use, trying %s.' % (old_nick, new_nick))
-    connection.nick(new_nick))
+    connection.nick(new_nick)
 
   def on_welcome(self, connection, event):
     self.nick = event.target()
@@ -438,11 +438,15 @@ class Bot(irclib.SimpleIRCClient):
     self.connect(self.server, self.port, self.nick)
 
   def on_join(self, connection, event):
-    nick = event.source().split("!")[0]
-    chan = event.target()
-    logging.debug("JOIN %s -> %s" % (nick, chan))
+    nick = event.source().split('!')[0]
+    target = event.target()
+    self._logger.debug('join %s -> %s' % (nick, target))
 
-    if nick == self.nick and chan == self.channel:
+    if nick == self.nick and target == self.channel:
+      self._network.statusIs(network.STATUS['synced'])
+    self._addNetworkEvent('joinEventNew', nick)
+
+    if nick == self.nick and target == self.channel:
       if self._first_time:
         # adding jobs to job queue
         jobs.add_job(check_connections, delay=10, periodic=True)
@@ -452,9 +456,9 @@ class Bot(irclib.SimpleIRCClient):
         jobs.add_job(check_for_queue_transition, delay=60, periodic=True)
         self._first_time = False
 
-      logging.debug("Sending SS_ANNOUNCE")
+      self._logger.debug('Sending SS_ANNOUNCE')
       tracker.clear()
-      connection.ctcp("SS_ANNOUNCE", chan)
+      connection.ctcp('SS_ANNOUNCE', target)
       if self._unhalt_on_connect:
         jobs.add_job(state.unhalt, delay=8)
 
