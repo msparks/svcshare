@@ -405,13 +405,16 @@ class Bot(irclib.SimpleIRCClient):
     old_nick = event.arguments()[0]
     self._nick_counter += 1
     new_nick = '%s%d' % (self.nick, self._nick_counter)
-    self._logger.debug('nick %s in use, trying %s' % (old_nick, new_nick))
+    self._logger.debug('Nick %s in use, trying %s.' % (old_nick, new_nick))
     connection.nick(new_nick))
 
   def on_welcome(self, connection, event):
     self.nick = event.target()
     self._nick_counter = 1
-    logging.debug("bot nick is %s" % self.nick)
+
+    self._network.statusIs(network.STATUS['connected'])
+    self._logger.debug('Connected to IRC. Nick is %s.' % self.nick)
+
     if irclib.is_channel(self.channel):
       connection.join(self.channel)
 
