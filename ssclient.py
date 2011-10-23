@@ -549,14 +549,39 @@ class Bot(irclib.SimpleIRCClient):
       callback(self, event, event.target(), ext)
 
   def on_ctcp(self, connection, event):
+    nick = event.source().split('!')[0]
     args = event.arguments()
     ctcp_type = args[0]
-    nick = event.source().split("!")[0]
 
     callback = getattr(self.cb, "ctcp_%s" % ctcp_type[3:].lower(), None)
     if callback is not None:
       # jump to callback
       callback(self, event, nick, args)
+
+    # This is the new protocol.
+
+    if len(args) == 0 or args[0] != 'SSMSG':
+      # Ignore all other CTCPs.
+      return
+
+    msg = args[1].split(' ')
+    if len(msg) < 2:
+      # Incomplete message.
+      return
+
+    try:
+      version = int(msg[0])
+      type = int(msg[1])
+    except ValueError:
+      # Not a well-formed message.
+      return
+
+    if len(msg) > 3:
+      message = ' '.join(msg[2:])
+    else:
+      message = ''
+
+    self._addNetworkEvent('controlMessageNew', nick, version, type, message)
 
 
 def check_connections():
