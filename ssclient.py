@@ -502,27 +502,29 @@ class Bot(irclib.SimpleIRCClient):
     tracker.rename(old_nick, nick)
 
   def on_privmsg(self, connection, event):
-    nick = event.source().split("!")[0]
+    nick = event.source().split('!')[0]
     msg = event.arguments()[0]
+    target = None
+    self._addNetworkEvent('chatMessageNew', nick, target, message)
+
     m = re.search(r"^\s*(.+?)(?:\s+(.+?))?\s*$", msg)
     if not m:
       return
     command, ext = m.group(1).lower(), m.group(2)
 
-    callback = getattr(self.cb, "msg_%s" % command, None)
+    callback = getattr(self.cb, 'msg_%s' % command, None)
     if callback is not None:
       # jump to callback
       callback(self, event, nick, ext)
 
   def on_pubmsg(self, connection, event):
-    if event.target() != self.channel:
-      return
-
     nick = event.source().split('!')[0]
     msg = event.arguments()[0]
     target = event.target()
-
     self._addNetworkEvent('chatMessageNew', nick, target, msg)
+
+    if target != self.channel:
+      return
 
     # .status
     if msg == ".status" and proxy.stats().activeConnections() > 0:
