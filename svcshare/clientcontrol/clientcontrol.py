@@ -50,7 +50,7 @@ class ClientControl(object):
       return 0
 
   def is_paused(self):
-    return self.proxy.running()
+    return (not self.proxy.running())
 
   def enqueue(self, id):
     if self.client:
