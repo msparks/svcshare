@@ -12,6 +12,7 @@ from svcshare import connectionproxy
 from svcshare import electiontracker
 from svcshare import irclib
 from svcshare import jobqueue
+from svcshare import network
 from svcshare import peertracker
 from svcshare import reporter
 
@@ -307,9 +308,19 @@ class SvcshareState(object):
     logging.debug("unhalted")
 
 
+class NetworkReactor(network.Network.Notifiee):
+  def __init__(self):
+    network.Network.Notifiee.__init__(self)
+    self._logger = logging.getLogger('NetworkReactor')
+
+  def onChatMessage(self, name, target, message):
+    self._logger.debug('<%s:%s> %s' % (name, target, message))
+
+
 class Bot(irclib.SimpleIRCClient):
-  def __init__(self, server, port, nick, channel, cb, ssl=False):
+  def __init__(self, network, server, port, nick, channel, cb, ssl=False):
     irclib.SimpleIRCClient.__init__(self)
+    self._network = network
     self.server = server
     self.port = port
     self.channel = channel
@@ -319,6 +330,11 @@ class Bot(irclib.SimpleIRCClient):
     self._nick_counter = 1
     self._first_time = True
     self._unhalt_on_connect = True
+
+  def _addNetworkEvent(self, method_name, *args):
+    method = getattr(self._network, method_name, None)
+    if method:
+      method(*args)
 
   def _status_msg(self):
     active = proxy.stats().activeConnections()
@@ -482,7 +498,11 @@ class Bot(irclib.SimpleIRCClient):
     if event.target() != self.channel:
       return
 
+    nick = event.source().split('!')[0]
     msg = event.arguments()[0]
+    target = event.target()
+
+    self._addNetworkEvent('chatMessageNew', nick, target, msg)
 
     # .status
     if msg == ".status" and proxy.stats().activeConnections() > 0:
@@ -764,6 +784,13 @@ def main():
   svcclient.pause()
   state.halt(0)  # start halted
 
+  # Network abstraction.
+  net = network.Network()
+
+  # Reactor for network events.
+  net_reactor = NetworkReactor()
+  net_reactor.notifierIs(net)
+
   # set up peer tracker (keep track of other bots)
   tracker = peertracker.PeerTracker()
 
@@ -773,7 +800,8 @@ def main():
   while True:
     try:
       use_ssl = getattr(config, 'BOT_SSL', False)
-      bot = Bot(config.BOT_IRCSERVER, config.BOT_IRCPORT,
+      bot = Bot(net,
+                config.BOT_IRCSERVER, config.BOT_IRCPORT,
                 config.BOT_NICK, config.BOT_CHANNEL,
                 BotCallbacks(), ssl=use_ssl)
     except irclib.ServerConnectionError, x:
