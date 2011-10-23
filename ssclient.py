@@ -353,6 +353,9 @@ class NetworkReactor(network.Network.Notifiee):
         self._unhalt_on_connect = True
         state.halt(0)
 
+    tracker.remove(name)
+    logging.debug('current peers: %s' % ', '.join(tracker.peers()))
+
   def onControlMessage(self, name, target, type, message=None):
     self._logger.debug('[Control message] <%s:%s> [%s] %s' % (name, target,
                                                               type, message))
@@ -512,38 +515,22 @@ class Bot(irclib.SimpleIRCClient):
     logging.debug('part %s <- %s' % (nick, target))
     self._addNetworkEvent('leaveEventNew', nick)
 
-    if target == self.channel:
-      tracker.remove(nick)
-      logging.debug('current peers: %s' % ', '.join(tracker.peers()))
-
   def on_quit(self, connection, event):
     nick = event.source().split('!')[0]
     logging.debug('quit %s' % nick)
     self._addNetworkEvent('leaveEventNew', nick)
 
-    tracker.remove(nick)
-    logging.debug('current peers: %s' % ', '.join(tracker.peers()))
-
   def on_kick(self, connection, event):
     kicked_nick = event.arguments()[0]
     self._addNetworkEvent('leaveEventNew', kicked_nick)
 
-    chan = event.target()
-    if chan == self.channel and kicked_nick != self.nick:
-      tracker.remove(self.nick)
-      logging.debug('current peers: %s' % ', '.join(tracker.peers()))
     elif kicked_nick == self.nick:
       # We're no longer synced.
       self._network.statusIs(network.STATUS['connected'])
       self._rejoin()
 
   def on_nick(self, connection, event):
-    old_nick = event.source().split("!")[0]
-    nick = event.target()
-    if old_nick == self.nick:
-      self.nick = event.target()
-      logging.debug("new bot nick is %s" % self.nick)
-    tracker.rename(old_nick, nick)
+    pass
 
   def on_privmsg(self, connection, event):
     nick = event.source().split('!')[0]
