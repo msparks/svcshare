@@ -364,6 +364,28 @@ class NetworkReactor(network.Network.Notifiee):
     self._logger.debug('<%s:%s> %s' % (name, target, message))
 
 
+class NetworkMessageReactor(network.Network.Notifiee):
+  def __init__(self):
+    network.Network.Notifiee.__init__(self)
+    self._logger = logging.getLogger('NetworkMessageReactor')
+
+  def onChatMessage(self, name, target, message):
+    if target is None:
+      # Private messages.
+      m = re.search(r'^\s*(.+?)(?:\s+(.+?))?\s*$', message)
+      if not m:
+        return
+      command, ext = m.group(1).lower(), m.group(2)
+      cb = getattr(self, '_msg%s' % command.capitalize(), None)
+      if cb:
+        cb(name, target, ext)
+
+  def _msgStatus(self, name, target, ext):
+    if target is None:
+      target = name
+    self._notifier._bot.announce_status(target)
+
+
 class Bot(irclib.SimpleIRCClient):
   def __init__(self, network, server, port, nick, channel, cb, ssl=False):
     irclib.SimpleIRCClient.__init__(self)
@@ -524,7 +546,7 @@ class Bot(irclib.SimpleIRCClient):
     kicked_nick = event.arguments()[0]
     self._addNetworkEvent('leaveEventNew', kicked_nick)
 
-    elif kicked_nick == self.nick:
+    if kicked_nick == self.nick:
       # We're no longer synced.
       self._network.statusIs(network.STATUS['connected'])
       self._rejoin()
@@ -536,7 +558,7 @@ class Bot(irclib.SimpleIRCClient):
     nick = event.source().split('!')[0]
     msg = event.arguments()[0]
     target = None
-    self._addNetworkEvent('chatMessageNew', nick, target, message)
+    self._addNetworkEvent('chatMessageNew', nick, target, msg)
 
     m = re.search(r"^\s*(.+?)(?:\s+(.+?))?\s*$", msg)
     if not m:
@@ -868,6 +890,10 @@ def main():
   # Reactor for network events.
   net_reactor = NetworkReactor()
   net_reactor.notifierIs(net)
+
+  # Refactor for public chat commands.
+  net_msg_reactor = NetworkMessageReactor()
+  net_msg_reactor.notifierIs(net)
 
   # set up peer tracker (keep track of other bots)
   tracker = peertracker.PeerTracker()
