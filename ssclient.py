@@ -482,14 +482,15 @@ class Bot(irclib.SimpleIRCClient):
 
   def on_kick(self, connection, event):
     kicked_nick = event.arguments()[0]
-    chan = event.target()
-    logging.debug("KICK %s <- %s" % (kicked_nick, chan))
+    self._addNetworkEvent('leaveEventNew', kicked_nick)
 
+    chan = event.target()
     if chan == self.channel and kicked_nick != self.nick:
       tracker.remove(self.nick)
-      logging.debug("current peers: %s" % ", ".join(tracker.peers()))
+      logging.debug('current peers: %s' % ', '.join(tracker.peers()))
     elif kicked_nick == self.nick:
-      logging.debug("Attempting to rejoin %s" % self.channel)
+      # TODO(ms): Move to _rejoin().
+      logging.debug('Attempting to rejoin %s' % self.channel)
       connection.join(self.channel)
 
   def on_nick(self, connection, event):
