@@ -419,7 +419,13 @@ class Bot(irclib.SimpleIRCClient):
       connection.join(self.channel)
 
   def on_disconnect(self, connection, event):
-    logging.info("Disconnected from IRC server: %s" % event.arguments()[0])
+    self._network.statusIs(network.STATUS['disconnected'])
+    msg = event.arguments()[0]
+    self._logger.debug('Disconnected from IRC server: %s' % msg)
+
+    # We left the network.
+    self._addNetworkEvent('leaveEventNew', self.nick)
+
     svcclient.pause()
     state.unforce()
     if state.halted():
@@ -428,6 +434,7 @@ class Bot(irclib.SimpleIRCClient):
       self._unhalt_on_connect = True
       state.halt(0)
     time.sleep(15)
+    # TODO(ms): Move this to _reconnect().
     self.connect(self.server, self.port, self.nick)
 
   def on_join(self, connection, event):
