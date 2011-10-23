@@ -815,8 +815,8 @@ def main():
 
   irclib.DEBUG = 0
 
-  # set up logging
-  _fmt = "%(asctime)s [%(levelname)s] %(message)s"
+  # Set up logging.
+  _fmt = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
   logging.basicConfig(level=logging.DEBUG,
                       format=_fmt)
 
