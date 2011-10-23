@@ -463,13 +463,14 @@ class Bot(irclib.SimpleIRCClient):
         jobs.add_job(state.unhalt, delay=8)
 
   def on_part(self, connection, event):
-    nick = event.source().split("!")[0]
-    chan = event.target()
-    logging.debug("PART %s <- %s" % (nick, chan))
+    nick = event.source().split('!')[0]
+    target = event.target()
+    logging.debug('part %s <- %s' % (nick, target))
+    self._addNetworkEvent('leaveEventNew', nick)
 
-    if chan == self.channel:
+    if target == self.channel:
       tracker.remove(nick)
-      logging.debug("current peers: %s" % ", ".join(tracker.peers()))
+      logging.debug('current peers: %s' % ', '.join(tracker.peers()))
 
   def on_quit(self, connection, event):
     nick = event.source().split("!")[0]
