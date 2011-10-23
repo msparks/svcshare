@@ -614,7 +614,7 @@ class Bot(irclib.SimpleIRCClient):
       # Not a well-formed message.
       return
 
-    if len(msg) > 3:
+    if len(msg) >= 3:
       message = ' '.join(msg[2:])
     else:
       message = ''
