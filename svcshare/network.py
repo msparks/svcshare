@@ -40,6 +40,7 @@ class Network(object):
 
   def __init__(self):
     self._status = STATUS['disconnected']
+    self._bot = None
     self._logger = logging.getLogger('Network')
     self._notifiees = []
 
@@ -48,6 +49,14 @@ class Network(object):
       method = getattr(notifiee, methodName, None)
       if method is not None:
         method(*args)
+
+  def botIs(self, bot):
+    """Sets the internal bot object for sending messages.
+
+    Args:
+      bot: Bot object
+    """
+    self._bot = bot
 
   def status(self):
     return self._status
@@ -77,11 +86,13 @@ class Network(object):
         ctcp_content = '%d %d' % (version, type)
       else:
         ctcp_content = '%d %d %s' % (version, type, message)
-      self._bot.connection.ctcp('SSMSG', self.channel(), ctcp_content)
+      if self._bot:
+        self._bot.connection.ctcp('SSMSG', self.channel(), ctcp_content)
 
   def chatMessageIs(self, target, message):
     if self._status == STATUS['synced']:
-      self._bot.connection.privmsg(target, message)
+      if self._bot:
+        self._bot.connection.privmsg(target, message)
 
 
 class Bot(irclib.SimpleIRCClient):

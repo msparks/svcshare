@@ -334,6 +334,7 @@ class Bot(irclib.SimpleIRCClient):
   def __init__(self, network, server, port, nick, channel, cb, ssl=False):
     irclib.SimpleIRCClient.__init__(self)
     self._network = network
+    self._network.botIs(self)
 
     self.server = server
     self.port = port
