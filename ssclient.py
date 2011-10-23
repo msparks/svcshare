@@ -379,6 +379,20 @@ class NetworkMessageReactor(network.Network.Notifiee):
       cb = getattr(self, '_msg%s' % command.capitalize(), None)
       if cb:
         cb(name, target, ext)
+    else:
+      # Public messages to the control channel.
+      my_name = self._notifier._bot.nick
+      m = re.search(
+          r'^(%s):\s*(.+?)(?:\s+(.+?))?\s*$' % re.escape(my_name), message)
+      if not m:
+        return
+
+      addressee, command, ext = m.group(1), m.group(2).lower(), m.group(3)
+      if addressee.lower() != my_name.lower():
+        return  # message was not addressed to the bot
+      cb = getattr(self, '_msg%s' % command.capitalize(), None)
+      if cb:
+        cb(name, target, ext)
 
   def _msgStatus(self, name, target, ext):
     if target is None:
