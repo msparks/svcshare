@@ -334,15 +334,19 @@ class Bot(irclib.SimpleIRCClient):
   def __init__(self, network, server, port, nick, channel, cb, ssl=False):
     irclib.SimpleIRCClient.__init__(self)
     self._network = network
+
     self.server = server
     self.port = port
-    self.channel = channel
     self.nick = nick
-    self.connect(server, port, nick, ssl=ssl)
+    self.channel = channel
     self.cb = cb
+    self.ssl = ssl
+
     self._nick_counter = 1
     self._first_time = True
     self._unhalt_on_connect = True
+    self._reconnect_delay = 15
+    self._rejoin_delay = 5
     self._logger = logging.getLogger('Bot')
 
   def _addNetworkEvent(self, method_name, *args):
@@ -413,6 +417,28 @@ class Bot(irclib.SimpleIRCClient):
     else:
       self.connection.privmsg(target, "System is indefinitely halted.")
 
+  def _reconnect(self):
+    self._logger.debug('Reconnecting in %d seconds.' % self._reconnect_delay)
+    time.sleep(self._reconnect_delay)
+    self.connect()
+
+  def _rejoin(self):
+    self._logger.debug('Rejoining control channel in %s seconds.' %
+                       self._rejoin_delay)
+    time.sleep(self._rejoin_delay)
+    self.connection.join(self.channel)
+
+  def connect(self):
+    self._logger.debug('Connecting to %s:%s.' % (self.server, self.port))
+    self._network.statusIs(network.STATUS['connecting'])
+    try:
+      irclib.SimpleIRCClient.connect(self,
+                                     self.server, self.port, self.nick,
+                                     ssl=self.ssl)
+    except irclib.ServerConnectionError, e:
+      self._logger.debug(e)
+      self._reconnect()
+
   def on_nicknameinuse(self, connection, event):
     # When nick is in use, append a number to the base nick.
     old_nick = event.arguments()[0]
@@ -446,9 +472,8 @@ class Bot(irclib.SimpleIRCClient):
     else:
       self._unhalt_on_connect = True
       state.halt(0)
-    time.sleep(15)
-    # TODO(ms): Move this to _reconnect().
-    self.connect(self.server, self.port, self.nick)
+
+    self._reconnect()
 
   def on_join(self, connection, event):
     nick = event.source().split('!')[0]
@@ -502,9 +527,9 @@ class Bot(irclib.SimpleIRCClient):
       tracker.remove(self.nick)
       logging.debug('current peers: %s' % ', '.join(tracker.peers()))
     elif kicked_nick == self.nick:
-      # TODO(ms): Move to _rejoin().
-      logging.debug('Attempting to rejoin %s' % self.channel)
-      connection.join(self.channel)
+      # We're no longer synced.
+      self._network.statusIs(network.STATUS['connected'])
+      self._rejoin()
 
   def on_nick(self, connection, event):
     old_nick = event.source().split("!")[0]
@@ -864,6 +889,7 @@ def main():
                 config.BOT_IRCSERVER, config.BOT_IRCPORT,
                 config.BOT_NICK, config.BOT_CHANNEL,
                 BotCallbacks(), ssl=use_ssl)
+      bot.connect()
     except irclib.ServerConnectionError, x:
       logging.debug("exception: %s" % x)
       time.sleep(60)
