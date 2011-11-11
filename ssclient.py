@@ -340,7 +340,7 @@ class NetworkMessageReactor(network.Network.Notifiee):
       return
 
     if target is None:
-      target = self._notifier.channel()
+      target = name
     ids = ext.split(' ')
     qd_ids = []
     for id in ids:
