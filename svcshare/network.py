@@ -106,9 +106,12 @@ class Network(object):
         self._bot.connection.ctcp('SSMSG', self.channel(), ctcp_content)
 
   def chatMessageIs(self, target, message):
-    if self._status == STATUS['synced']:
-      if self._bot:
-        self._bot.connection.privmsg(target, message)
+    if self._bot and self._status == STATUS['synced']:
+      self._bot.connection.privmsg(target, message)
+
+  def nickIs(self, new_nick):
+    if self._bot and self._status == STATUS['synced']:
+      self._bot.connection.nick(new_nick)
 
 
 class Bot(irclib.SimpleIRCClient):
