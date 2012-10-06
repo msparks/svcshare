@@ -421,6 +421,9 @@ class NetworkMessageReactor(network.Network.Notifiee):
     self._notifier.chatMessageIs(target,
                                  'svcshare version %s' % _version_string)
 
+  def _msgNick(self, _name, _target, ext):
+    self._notifier.nickIs(ext.split(' ', 1)[0])
+
 
 class Bot(irclib.SimpleIRCClient):
   def __init__(self, network, server, port, nick, channel, cb, ssl=False):
